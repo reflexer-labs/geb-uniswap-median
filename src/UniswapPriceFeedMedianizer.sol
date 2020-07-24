@@ -231,6 +231,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         amountOut            = multiply(amountIn, priceAverage) / converterFeedScalingFactor;
     }
 
+    // --- Core Logic ---
     // @notice Update the internal median price
     function updateResult() external {
         // Update the converter's median price first
@@ -277,11 +278,11 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         converterPriceTag = addition(converterPriceTag, latestConverterFeedObservation.price);
     }
 
+    // --- Getters ---
     function read() external view returns (uint256) {
         require(medianPrice > 0, "UniswapPriceFeedMedianizer/invalid-price-feed");
         return medianPrice;
     }
-
     function getResultWithValidity() external view returns (uint256, bool) {
         return (medianPrice, medianPrice > 0);
     }
