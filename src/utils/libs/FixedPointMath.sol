@@ -2,10 +2,10 @@
 
 pragma solidity ^0.6.7;
 
-import './Babylonian.sol';
+import './BabylonianMath.sol';
 
 // Contract for handling binary fixed point numbers (https://en.wikipedia.org/wiki/Q_(number_format))
-contract FixedPoint is Babylonian {
+contract FixedPointMath is BabylonianMath {
     // range: [0, 2**112 - 1]
     // resolution: 1 / 2**112
     struct uq112x112 {

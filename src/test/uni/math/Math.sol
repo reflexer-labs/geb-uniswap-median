@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 pragma solidity ^0.6.7;
 
-// computes square roots using the babylonian method
-// https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method
-contract Babylonian {
+// a library for performing various math operations
+
+contract Math {
+    function min(uint x, uint y) internal pure returns (uint z) {
+        z = x < y ? x : y;
+    }
+
+    // babylonian method (https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)
     function sqrt(uint y) internal pure returns (uint z) {
         if (y > 3) {
             z = y;
@@ -16,6 +19,5 @@ contract Babylonian {
         } else if (y != 0) {
             z = 1;
         }
-        // else z = 0
     }
 }

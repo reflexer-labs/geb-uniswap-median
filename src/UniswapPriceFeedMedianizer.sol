@@ -3,15 +3,15 @@ pragma solidity ^0.6.7;
 import './utils/uni/IUniswapV2Factory.sol';
 import './utils/uni/IUniswapV2Pair.sol';
 
-import './utils/libs/UniswapV2Library.sol';
-import './utils/libs/UniswapV2OracleLibrary.sol';
+import './utils/libs/ModifiedUniswapV2Library.sol';
+import './utils/libs/ModifiedUniswapV2OracleLibrary.sol';
 
 abstract contract ConverterFeedLike {
     function getResultWithValidity() virtual external view returns (uint256,bool);
     function updateResult() virtual external;
 }
 
-contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary {
+contract UniswapPriceFeedMedianizer is ModifiedUniswapV2Library, ModifiedUniswapV2OracleLibrary {
     // --- Auth ---
     mapping (address => uint) public authorizedAccounts;
     /**
