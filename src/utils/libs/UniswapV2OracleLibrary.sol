@@ -4,9 +4,7 @@ import '../uni/IUniswapV2Pair.sol';
 import './FixedPoint.sol';
 
 // library with helper methods for oracles that are concerned with computing average prices
-library UniswapV2OracleLibrary {
-    using FixedPoint for *;
-
+contract UniswapV2OracleLibrary is FixedPoint {
     // helper function that returns the current block timestamp within the range of uint32, i.e. [0, 2**32 - 1]
     function currentBlockTimestamp() internal view returns (uint32) {
         return uint32(block.timestamp % 2 ** 32);
@@ -27,9 +25,9 @@ library UniswapV2OracleLibrary {
             uint32 timeElapsed = blockTimestamp - blockTimestampLast;
             // addition overflow is desired
             // counterfactual
-            price0Cumulative += uint(FixedPoint.fraction(reserve1, reserve0)._x) * timeElapsed;
+            price0Cumulative += uint(fraction(reserve1, reserve0)._x) * timeElapsed;
             // counterfactual
-            price1Cumulative += uint(FixedPoint.fraction(reserve0, reserve1)._x) * timeElapsed;
+            price1Cumulative += uint(fraction(reserve0, reserve1)._x) * timeElapsed;
         }
     }
 }

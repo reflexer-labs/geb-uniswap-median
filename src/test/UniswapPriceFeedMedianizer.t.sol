@@ -1,14 +1,14 @@
-pragma solidity ^0.5.15;
+pragma solidity ^0.6.7;
 
 import "ds-test/test.sol";
 
-import "./GebUniswapMedian.sol";
+import "../UniswapPriceFeedMedianizer.sol";
 
-contract GebUniswapMedianTest is DSTest {
-    GebUniswapMedian median;
+contract UniswapPriceFeedMedianizerTest is DSTest {
+    UniswapPriceFeedMedianizer uniswapMedianizer;
 
     function setUp() public {
-        median = new GebUniswapMedian();
+        // median = new GebUniswapMedian();
     }
 
     function testFail_basic_sanity() public {

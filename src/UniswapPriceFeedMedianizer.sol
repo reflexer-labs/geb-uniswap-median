@@ -2,21 +2,16 @@ pragma solidity ^0.6.7;
 
 import './utils/uni/IUniswapV2Factory.sol';
 import './utils/uni/IUniswapV2Pair.sol';
-import './utils/uni/FixedPoint.sol';
 
-import './utils/libs/SafeMath.sol';
 import './utils/libs/UniswapV2Library.sol';
 import './utils/libs/UniswapV2OracleLibrary.sol';
 
 abstract contract ConverterFeedLike {
     function getResultWithValidity() virtual external view returns (uint256,bool);
-    function updateResult() external;
+    function updateResult() virtual external;
 }
 
-contract UniswapPriceFeedMedianizer {
-    using FixedPoint for *;
-    using SafeMath for uint;
-
+contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary {
     // --- Auth ---
     mapping (address => uint) public authorizedAccounts;
     /**
@@ -54,10 +49,10 @@ contract UniswapPriceFeedMedianizer {
     // --- Uniswap Vars ---
     uint256              public defaultAmountIn;
 
-    address              public immutable uniswapFactory;
-    address              public immutable targetToken;
-    address              public immutable denominationToken;
-    address              public immutable uniswapPair;
+    address              public uniswapFactory;
+    address              public targetToken;
+    address              public denominationToken;
+    address              public uniswapPair;
 
     UniswapObservation[] public uniswapObservations;
 
@@ -69,24 +64,30 @@ contract UniswapPriceFeedMedianizer {
     ConverterFeedObservation[] public converterFeedObservations;
 
     // --- General Vars ---
-    bytes32 public symbol = "raiusd"; // You want to change this every deployment
-    // The number of observations stored for each pair, i.e. how many price observations are stored for the window.
-    // as granularity increases from 1, more frequent updates are needed, but moving averages become more precise.
-    // averages are computed over intervals with sizes in the range:
-    //   [windowSize - (windowSize / granularity) * 2, windowSize]
-    // e.g. if the window size is 24 hours, and the granularity is 24, the oracle will return the average price for
-    //   the period:
-    //   [now - [22 hours, 24 hours], now]
-    uint8   public immutable granularity;
+    // Symbol - you want to change this every deployment
+    bytes32 public symbol = "raiusd";
+    /**
+        The number of observations stored for each pair, i.e. how many price observations are stored for the window.
+        as granularity increases from 1, more frequent updates are needed, but moving averages become more precise.
+        averages are computed over intervals with sizes in the range:
+          [windowSize - (windowSize / granularity) * 2, windowSize]
+        e.g. if the window size is 24 hours, and the granularity is 24, the oracle will return the average price for
+          the period:
+          [now - [22 hours, 24 hours], now]
+    **/
+    uint8   public granularity;
     // When the price feed was last updated
     uint32  public lastUpdateTime;
-    // The last computed median price
-    uint128 private medianPrice;
     // The desired amount of time over which the moving average should be computed, e.g. 24 hours
-    uint256 public immutable windowSize;
+    uint256 public windowSize;
     // This is redundant with granularity and windowSize, but stored for gas savings & informational purposes.
-    uint256 public immutable periodSize;
+    uint256 public periodSize;
+    // This is the denominator for computing
+    uint256 public converterFeedScalingFactor;
+    // The last computed median price
+    uint256 private medianPrice;
 
+    // --- Events ---
     event LogMedianPrice(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
 
@@ -100,10 +101,10 @@ contract UniswapPriceFeedMedianizer {
         _;
         assembly {
             let mark := mload(0x40)                   // end of memory ensures zero
-            mstore(0x40, addition(mark, 288))              // update free memory pointer
+            mstore(0x40, add(mark, 288))              // update free memory pointer
             mstore(mark, 0x20)                        // bytes type data offset
-            mstore(addition(mark, 0x20), 224)              // bytes size (padded)
-            calldatacopy(addition(mark, 0x40), 0, 224)     // bytes payload
+            mstore(add(mark, 0x20), 224)              // bytes size (padded)
+            calldatacopy(add(mark, 0x40), 0, 224)     // bytes payload
             log4(mark, 288,                           // calldata
                  shl(224, shr(224, calldataload(0))), // msg.sig
                  calldataload(4),                     // arg1
@@ -120,9 +121,10 @@ contract UniswapPriceFeedMedianizer {
       address denominationToken_,
       uint256 defaultAmountIn_,
       uint256 windowSize_,
+      uint256 converterFeedScalingFactor_,
       uint8   granularity_
     ) public {
-        require(granularity_ > 1, 'UniswapPriceFeedMedianizer/granularity');
+        require(granularity_ > 1, 'UniswapPriceFeedMedianizer/null-granularity');
         require(
             (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
             'UniswapPriceFeedMedianizer/window-not-evenly-divisible'
@@ -133,10 +135,11 @@ contract UniswapPriceFeedMedianizer {
         uniswapFactory                 = uniswapFactory_;
         defaultAmountIn                = defaultAmountIn_;
         windowSize                     = windowSize_;
+        converterFeedScalingFactor     = converterFeedScalingFactor_;
         granularity                    = granularity_;
         targetToken                    = targetToken_;
         denominationToken              = denominationToken_;
-        uniswapPair                    = UniswapV2Library.pairFor(uniswapFactory, targetToken, denominationToken);
+        uniswapPair                    = pairFor(uniswapFactory, targetToken, denominationToken);
         // Populate the arrays with empty observations
         for (uint i = uniswapObservations.length; i < granularity; i++) {
             uniswapObservations.push();
@@ -161,32 +164,25 @@ contract UniswapPriceFeedMedianizer {
     }
 
     // --- General Utils ---
-    function both(bool x, bool y) internal pure returns (bool z) {
+    function both(bool x, bool y) private pure returns (bool z) {
         assembly{ z := and(x, y)}
     }
     // @notice Returns the index of the observation corresponding to the given timestamp
     // @param timestamp The timestamp for which we want to get the index for
-    function observationIndexOf(uint timestamp) public view returns (uint8 index) {
+    function observationIndexOf(uint timestamp) private view returns (uint8 index) {
         uint epochPeriod = timestamp / periodSize;
         return uint8(epochPeriod % granularity);
     }
     // @notice Returns the observations from the oldest epoch (at the beginning of the window) relative to the current time
     function getFirstObservationsInWindow()
-      public view returns (UniswapObservation storage firstUniswapObservation, ConverterFeedObservation storage firstConverterFeedObservation) {
+      private view returns (UniswapObservation storage firstUniswapObservation, ConverterFeedObservation storage firstConverterFeedObservation) {
         uint8 observationIndex = observationIndexOf(block.timestamp);
         // No overflow issue. If observationIndex + 1 overflows, result is still zero
         uint8 firstObservationIndex   = (observationIndex + 1) % granularity;
-        firstObservation              = uniswapObservations[firstObservationIndex];
+        firstUniswapObservation       = uniswapObservations[firstObservationIndex];
         firstConverterFeedObservation = converterFeedObservations[firstObservationIndex];
     }
-    function getTimeSinceLatest() public view returns (uint256) {
-        // Get the observation for the current period
-        uint8 observationIndex                                    = observationIndexOf(block.timestamp);
-        UniswapObservation storage latestUniswapObservation       = uniswapObservations[observationIndex];
-        UniswapObservation storage latestConverterFeedObservation = converterFeedObservations[observationIndex];
-        return (block.timestamp - latestUniswapObservation.timestamp);
-    }
-    function getMedianPrice(uint256 price0Cumulative, uint256 price1Cumulative) public view returns (uint256) {
+    function getMedianPrice(uint256 price0Cumulative, uint256 price1Cumulative) private returns (uint256) {
         (
           UniswapObservation storage firstUniswapObservation,
           ConverterFeedObservation storage firstConverterFeedObservation
@@ -195,9 +191,9 @@ contract UniswapPriceFeedMedianizer {
         uint timeElapsedSinceFirst = block.timestamp - firstUniswapObservation.timestamp;
         // We can only fetch a brand new median price if there's been enough price data gathered
         if (both(timeElapsedSinceFirst <= windowSize, timeElapsedSinceFirst >= windowSize - periodSize * 2)) {
-          converterPriceTag = subtract(firstConverterFeedObservation.price, priceCumulativeStart);
+          converterPriceTag = subtract(firstConverterFeedObservation.price, firstConverterFeedObservation.price);
 
-          (address token0,) = UniswapV2Library.sortTokens(tokenIn, tokenOut);
+          (address token0,) = sortTokens(targetToken, denominationToken);
           uint256 uniswapAmountOut;
           if (token0 == targetToken) {
               uniswapAmountOut = uniswapComputeAmountOut(firstUniswapObservation.price0Cumulative, price0Cumulative, timeElapsedSinceFirst, defaultAmountIn);
@@ -208,15 +204,12 @@ contract UniswapPriceFeedMedianizer {
           return converterComputeAmountOut(uniswapAmountOut);
         }
 
-        return 0;
+        return medianPrice;
     }
 
     // --- Uniswap Utils ---
-    // @notice Given the cumulative prices of the start and end of a period, and the length of the period, compute the average
+    // @notice Given the Uniswap cumulative prices of the start and end of a period, and the length of the period, compute the average
     //         price in terms of how much amount out is received for the amount in.
-    function getUniswapCumulativePrices() public view returns (uint256, uint256) {
-
-    }
     function uniswapComputeAmountOut(
         uint256 priceCumulativeStart,
         uint256 priceCumulativeEnd,
@@ -224,18 +217,18 @@ contract UniswapPriceFeedMedianizer {
         uint256 amountIn
     ) public pure returns (uint256 amountOut) {
         // Overflow is desired
-        FixedPoint.uq112x112 memory priceAverage = FixedPoint.uq112x112(
+        uq112x112 memory priceAverage = uq112x112(
             uint224((priceCumulativeEnd - priceCumulativeStart) / timeElapsed)
         );
-        amountOut = priceAverage.mul(amountIn).decode144();
+        amountOut = decode144(multiply(priceAverage, amountIn));
     }
 
     // --- Converter Utils ---
     function converterComputeAmountOut(
         uint256 amountIn
-    ) public pure returns (uint256 amountOut) {
+    ) public view returns (uint256 amountOut) {
         uint256 priceAverage = converterPriceTag / granularity;
-        amountOut            = multiply(amountIn, priceAverage) / WAD;
+        amountOut            = multiply(amountIn, priceAverage) / converterFeedScalingFactor;
     }
 
     // @notice Update the internal median price
@@ -247,31 +240,41 @@ contract UniswapPriceFeedMedianizer {
           return;
         }
 
-        uint256 timeElapsedSinceLatest = getTimeSinceLatest();
+        // Get the observation for the current period
+        uint8 observationIndex         = observationIndexOf(block.timestamp);
+        uint256 timeElapsedSinceLatest = (block.timestamp - uniswapObservations[observationIndex].timestamp);
         // We only want to commit updates once per period (i.e. windowSize / granularity)
         if (timeElapsedSinceLatest > periodSize) {
-            // Add Uniswap observation
-            (uint uniswapPrice0Cumulative, uint uniswapPrice1Cumulative,) = UniswapV2OracleLibrary.currentCumulativePrices(uniswapPair);
+            // Get Uniswap cumulative prices
+            (uint uniswapPrice0Cumulative, uint uniswapPrice1Cumulative,) = currentCumulativePrices(uniswapPair);
 
-            // TODO: separate func to compute this
-            latestUniswapObservation.timestamp        = block.timestamp;
-            latestUniswapObservation.price0Cumulative = uniswapPrice0Cumulative;
-            latestUniswapObservation.price1Cumulative = uniswapPrice1Cumulative;
-
-            // Add converter feed observation
-            (uint256 priceFeedValue, bool hasValidValue) = converterFeed.getResultWithValidity();
-            latestConverterFeedObservation.timestamp     = block.timestamp;
-            if (hasValidValue) {
-              latestConverterFeedObservation.price = priceFeedValue;
-            } else {
-              latestConverterFeedObservation.price = latestConverterFeedObservation[observationIndex].price;
-            }
-            converterPriceTag = addition(converterPriceTag, latestConverterFeedObservation.price);
+            // Add new observations
+            updateObservations(observationIndex, uniswapPrice0Cumulative, uniswapPrice1Cumulative);
 
             // Calculate latest medianPrice
-            medianPrice    = getMedianPrice(price0Cumulative, price1Cumulative);
+            medianPrice    = getMedianPrice(uniswapPrice0Cumulative, uniswapPrice1Cumulative);
             lastUpdateTime = uint32(now);
         }
+    }
+    function updateObservations(uint8 observationIndex, uint256 uniswapPrice0Cumulative, uint256 uniswapPrice1Cumulative) internal {
+        UniswapObservation       storage latestUniswapObservation       = uniswapObservations[observationIndex];
+        ConverterFeedObservation storage latestConverterFeedObservation = converterFeedObservations[observationIndex];
+
+        // Add Uniswap observation
+        latestUniswapObservation.timestamp        = block.timestamp;
+        latestUniswapObservation.price0Cumulative = uniswapPrice0Cumulative;
+        latestUniswapObservation.price1Cumulative = uniswapPrice1Cumulative;
+
+        // Add converter feed observation
+        (uint256 priceFeedValue, bool hasValidValue) = converterFeed.getResultWithValidity();
+        latestConverterFeedObservation.timestamp     = block.timestamp;
+        if (hasValidValue) {
+          latestConverterFeedObservation.price = priceFeedValue;
+        } else {
+          latestConverterFeedObservation.price = converterFeedObservations[observationIndex - 1].price;
+        }
+
+        converterPriceTag = addition(converterPriceTag, latestConverterFeedObservation.price);
     }
 
     function read() external view returns (uint256) {
