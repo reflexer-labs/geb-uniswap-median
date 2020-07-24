@@ -1,14 +1,13 @@
 pragma solidity ^0.6.7;
 
-import './interfaces/IUniswapV2ERC20.sol';
 import './math/SafeMath.sol';
 
-contract UniswapV2ERC20 is IUniswapV2ERC20, SafeMath {
+contract UniswapV2ERC20 is SafeMath {
 
     string public constant name = 'Uniswap V2';
     string public constant symbol = 'UNI-V2';
     uint8 public constant decimals = 18;
-    uint  public totalSupply;
+    uint public totalSupply;
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
 
@@ -37,14 +36,14 @@ contract UniswapV2ERC20 is IUniswapV2ERC20, SafeMath {
     }
 
     function _mint(address to, uint value) internal {
-        totalSupply = totalSupply.add(value);
-        balanceOf[to] = balanceOf[to].add(value);
+        totalSupply = add(totalSupply, value);
+        balanceOf[to] = add(balanceOf[to], value);
         emit Transfer(address(0), to, value);
     }
 
     function _burn(address from, uint value) internal {
-        balanceOf[from] = balanceOf[from].sub(value);
-        totalSupply = totalSupply.sub(value);
+        balanceOf[from] = sub(balanceOf[from], value);
+        totalSupply = sub(totalSupply, value);
         emit Transfer(from, address(0), value);
     }
 
@@ -54,24 +53,24 @@ contract UniswapV2ERC20 is IUniswapV2ERC20, SafeMath {
     }
 
     function _transfer(address from, address to, uint value) private {
-        balanceOf[from] = balanceOf[from].sub(value);
-        balanceOf[to] = balanceOf[to].add(value);
+        balanceOf[from] = sub(balanceOf[from], value);
+        balanceOf[to] = add(balanceOf[to], value);
         emit Transfer(from, to, value);
     }
 
-    function approve(address spender, uint value) external returns (bool) {
+    function approve(address spender, uint value) public returns (bool) {
         _approve(msg.sender, spender, value);
         return true;
     }
 
-    function transfer(address to, uint value) external returns (bool) {
+    function transfer(address to, uint value) public returns (bool) {
         _transfer(msg.sender, to, value);
         return true;
     }
 
-    function transferFrom(address from, address to, uint value) external returns (bool) {
+    function transferFrom(address from, address to, uint value) public returns (bool) {
         if (allowance[from][msg.sender] != uint(-1)) {
-            allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
+            allowance[from][msg.sender] = sub(allowance[from][msg.sender], value);
         }
         _transfer(from, to, value);
         return true;
