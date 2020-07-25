@@ -36,6 +36,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         _;
     }
 
+    // --- Observations ---
     struct UniswapObservation {
         uint timestamp;
         uint price0Cumulative;
@@ -47,17 +48,22 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     }
 
     // --- Uniswap Vars ---
+    // Default amount of targetToken used when calculating the denominationToken output
     uint256              public defaultAmountIn;
 
     address              public uniswapFactory;
+    // Token for which the contract calculates the medianPrice for
     address              public targetToken;
+    // Pair token from the Unisap pair
     address              public denominationToken;
     address              public uniswapPair;
 
     UniswapObservation[] public uniswapObservations;
 
     // --- Converter Feed Vars ---
+    // Accumulator for converter price feeds
     uint256                    public converterPriceCumulative;
+    // Latest converter price accumulator snapshot
     uint256                    public converterPriceTag;
 
     ConverterFeedLike          public converterFeed;
@@ -91,6 +97,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     event LogMedianPrice(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
 
+    // --- Modifiers ---
     /**
     * @notice Log an 'anonymous' event with a constant 6 words of calldata
     *         and four indexed topics: the selector and the first three args
@@ -149,6 +156,11 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     }
 
     // --- Administration ---
+    /**
+    * @notice Modify the converter feed address
+    * @param parameter Name of the parameter to modify
+    * @param data New parameter value
+    **/
     function modifyParameters(bytes32 parameter, address data) external emitLog isAuthorized {
         require(data != address(0), "UniswapPriceFeedMedianizer/null-data");
         if (parameter == "converterFeed") {
@@ -172,6 +184,11 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         firstUniswapObservation       = uniswapObservations[firstObservationIndex];
         firstConverterFeedObservation = converterFeedObservations[firstObservationIndex];
     }
+    /**
+    * @notice Calculate the median price using the latest observations and the latest Uniswap pair prices
+    * @param price0Cumulative Cumulative price for the first token in the pair
+    * @param price1Cumulative Cumulative price for the second token in the pair
+    **/
     function getMedianPrice(uint256 price0Cumulative, uint256 price1Cumulative) private returns (uint256) {
         (
           UniswapObservation storage firstUniswapObservation,
@@ -188,8 +205,6 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
               uniswapAmountOut = uniswapComputeAmountOut(firstUniswapObservation.price1Cumulative, price1Cumulative, timeElapsedSinceFirst, defaultAmountIn);
           }
 
-          // return uniswapAmountOut;
-
           return converterComputeAmountOut(uniswapAmountOut);
         }
 
@@ -203,6 +218,9 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         uint epochPeriod = timestamp / periodSize;
         return uint8(epochPeriod % granularity);
     }
+    /**
+    * @notice Get the observation list length
+    **/
     function getObservationListLength() public view returns (uint256, uint256) {
         return (uniswapObservations.length, converterFeedObservations.length);
     }
@@ -211,6 +229,10 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     /**
     * @notice Given the Uniswap cumulative prices of the start and end of a period, and the length of the period, compute the average
     *         price in terms of how much amount out is received for the amount in.
+    * @param priceCumulativeStart Old snapshot of the cumulative price of a token
+    * @param priceCumulativeEnd New snapshot of the cumulative price of a token
+    * @param timeElapsed Total time elapsed
+    * @param amountIn Amount of target tokens we want to find the price for
     **/
     function uniswapComputeAmountOut(
         uint256 priceCumulativeStart,
@@ -226,6 +248,11 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     }
 
     // --- Converter Utils ---
+    /**
+    * @notice Calculate the price of an amount of tokens using the convertor price feed. Used after the contract determines
+    *         the amount of Uniswap pair denomination tokens for defaultAmountIn target tokens
+    * @param amountIn Amount of denomination tokens to calculate the price for
+    **/
     function converterComputeAmountOut(
         uint256 amountIn
     ) public view returns (uint256 amountOut) {
@@ -260,6 +287,12 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         medianPrice    = getMedianPrice(uniswapPrice0Cumulative, uniswapPrice1Cumulative);
         lastUpdateTime = uint32(now);
     }
+    /**
+    * @notice Push new observation data in the observation arrays
+    * @param observationIndex Array index of the observations to update
+    * @param uniswapPrice0Cumulative Latest cumulative price of the first token in a Uniswap pair
+    * @param uniswapPrice1Cumulative Latest cumulative price of the second tokens in a Uniswap pair
+    **/
     function updateObservations(uint8 observationIndex, uint256 uniswapPrice0Cumulative, uint256 uniswapPrice1Cumulative) internal {
         UniswapObservation       storage latestUniswapObservation       = uniswapObservations[observationIndex];
         ConverterFeedObservation storage latestConverterFeedObservation = converterFeedObservations[observationIndex];
@@ -285,10 +318,16 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     }
 
     // --- Getters ---
+    /**
+    * @notice Fetch the latest medianPrice or revert if is is null
+    **/
     function read() external view returns (uint256) {
         require(medianPrice > 0, "UniswapPriceFeedMedianizer/invalid-price-feed");
         return medianPrice;
     }
+    /**
+    * @notice Fetch the latest medianPrice and whether it is null or not
+    **/
     function getResultWithValidity() external view returns (uint256, bool) {
         return (medianPrice, medianPrice > 0);
     }
