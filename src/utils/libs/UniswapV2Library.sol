@@ -5,13 +5,13 @@ import '../uni/IUniswapV2Pair.sol';
 contract UniswapV2Library {
     // --- Math ---
     function addition(uint x, uint y) internal pure returns (uint z) {
-        require((z = x + y) >= x, 'SafeMath/add-overflow');
+        require((z = x + y) >= x, 'UniswapV2Library: add-overflow');
     }
     function subtract(uint x, uint y) internal pure returns (uint z) {
-        require((z = x - y) <= x, 'SafeMath/sub-underflow');
+        require((z = x - y) <= x, 'UniswapV2Library: sub-underflow');
     }
     function multiply(uint x, uint y) internal pure returns (uint z) {
-        require(y == 0 || (z = x * y) / y == x, 'SafeMath/mul-overflow');
+        require(y == 0 || (z = x * y) / y == x, 'UniswapV2Library: mul-overflow');
     }
 
     // returns sorted token addresses, used to handle return values from pairs sorted in this order
@@ -19,24 +19,6 @@ contract UniswapV2Library {
         require(tokenA != tokenB, 'UniswapV2Library: IDENTICAL_ADDRESSES');
         (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         require(token0 != address(0), 'UniswapV2Library: ZERO_ADDRESS');
-    }
-
-    // calculates the CREATE2 address for a pair without making any external calls
-    function pairFor(address factory, address tokenA, address tokenB) internal pure returns (address pair) {
-        (address token0, address token1) = sortTokens(tokenA, tokenB);
-        pair = address(uint(keccak256(abi.encodePacked(
-                hex'ff',
-                factory,
-                keccak256(abi.encodePacked(token0, token1)),
-                hex'96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f' // init code hash
-            ))));
-    }
-
-    // fetches and sorts the reserves for a pair
-    function getReserves(address factory, address tokenA, address tokenB) internal view returns (uint reserveA, uint reserveB) {
-        (address token0,) = sortTokens(tokenA, tokenB);
-        (uint reserve0, uint reserve1,) = IUniswapV2Pair(pairFor(factory, tokenA, tokenB)).getReserves();
-        (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
     }
 
     // given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
@@ -63,27 +45,5 @@ contract UniswapV2Library {
         uint numerator = multiply(multiply(reserveIn, amountOut), 1000);
         uint denominator = multiply(subtract(reserveOut, amountOut), 997);
         amountIn = addition((numerator / denominator), 1);
-    }
-
-    // performs chained getAmountOut calculations on any number of pairs
-    function getAmountsOut(address factory, uint amountIn, address[] memory path) internal view returns (uint[] memory amounts) {
-        require(path.length >= 2, 'UniswapV2Library: INVALID_PATH');
-        amounts = new uint[](path.length);
-        amounts[0] = amountIn;
-        for (uint i; i < path.length - 1; i++) {
-            (uint reserveIn, uint reserveOut) = getReserves(factory, path[i], path[i + 1]);
-            amounts[i + 1] = getAmountOut(amounts[i], reserveIn, reserveOut);
-        }
-    }
-
-    // performs chained getAmountIn calculations on any number of pairs
-    function getAmountsIn(address factory, uint amountOut, address[] memory path) internal view returns (uint[] memory amounts) {
-        require(path.length >= 2, 'UniswapV2Library: INVALID_PATH');
-        amounts = new uint[](path.length);
-        amounts[amounts.length - 1] = amountOut;
-        for (uint i = path.length - 1; i > 0; i--) {
-            (uint reserveIn, uint reserveOut) = getReserves(factory, path[i - 1], path[i]);
-            amounts[i - 1] = getAmountIn(amounts[i], reserveIn, reserveOut);
-        }
     }
 }
