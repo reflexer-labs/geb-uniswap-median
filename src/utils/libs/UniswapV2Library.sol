@@ -2,7 +2,7 @@ pragma solidity ^0.6.7;
 
 import '../uni/IUniswapV2Pair.sol';
 
-contract ModifiedUniswapV2Library {
+contract UniswapV2Library {
     // --- Math ---
     function addition(uint x, uint y) internal pure returns (uint z) {
         require((z = x + y) >= x, 'SafeMath/add-overflow');

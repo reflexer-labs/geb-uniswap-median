@@ -3,7 +3,8 @@ pragma solidity ^0.6.7;
 import "ds-test/test.sol";
 import "ds-weth/weth9.sol";
 import "ds-token/token.sol";
-import "geb-chainlink-median/ChainlinkPriceFeedMedianizer.sol";
+
+import "./orcl/MockMedianizer.sol";
 
 import "./uni/UniswapV2ERC20.sol";
 import "./uni/UniswapV2Factory.sol";
@@ -11,6 +12,10 @@ import "./uni/UniswapV2Pair.sol";
 import "./uni/UniswapV2Router02.sol";
 
 import { UniswapPriceFeedMedianizer } from  "../UniswapPriceFeedMedianizer.sol";
+
+abstract contract Hevm {
+    function warp(uint256) virtual public;
+}
 
 // --- Token Contracts ---
 contract USDC is DSToken {
@@ -20,32 +25,23 @@ contract USDC is DSToken {
     }
 }
 
-// --- Chainlink Contracts ---
-contract ChainlinkAggregator {
-  int256 public latestAnswer;
-  uint256 public latestTimestamp;
-
-  function modifyParameters(bytes32 parameter, int256 data) public {
-      latestAnswer    = data;
-      latestTimestamp = now;
-  }
-}
-contract ChainlinkETHMedianizer is ChainlinkPriceFeedMedianizer {
-    constructor(address aggregator) public ChainlinkPriceFeedMedianizer(aggregator) {
+// --- Median Contracts ---
+contract ETHMedianizer is MockMedianizer {
+    constructor() public {
         symbol = "ETHUSD";
     }
 }
-contract ChainlinkUSDCMedianizer is ChainlinkPriceFeedMedianizer {
-    constructor(address aggregator) public ChainlinkPriceFeedMedianizer(aggregator) {
+contract USDCMedianizer is MockMedianizer {
+    constructor() public {
         symbol = "USDCUSD";
     }
 }
 
 contract UniswapPriceFeedMedianizerTest is DSTest {
-    ChainlinkETHMedianizer chainlinkETHPriceFeed;
-    ChainlinkUSDCMedianizer chainlinkUSDCPriceFeed;
-    ChainlinkAggregator ethUSDAggregator;
-    ChainlinkAggregator usdcUSDAggregator;
+    Hevm hevm;
+
+    ETHMedianizer converterETHPriceFeed;
+    USDCMedianizer converterUSDCPriceFeed;
 
     UniswapPriceFeedMedianizer uniswapRAIWETHMedianizer;
     UniswapPriceFeedMedianizer uniswapRAIUSDCMedianizer;
@@ -55,21 +51,19 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
 
     UniswapV2Pair raiWETHPair;
     UniswapV2Pair raiUSDCPair;
-    UniswapV2Pair wethWETHCompanionPair;
 
     DSToken rai;
     USDC usdc;
     WETH9_ weth;
-    WETH9_ wethCompanion;
+
+    uint256 startTime = 1577836800;
 
     uint256 initTokenAmount  = 1000 ether;
     uint256 initETHUSDPrice  = 250 * 10 ** 8;
     uint256 initUSDCUSDPrice = 10 ** 8;
 
     uint256 initETHRAIPairLiquidity = 5 ether;                // 1250 USD
-    uint256 initRAIETHPairLiquidity = 294672324375000000000;  // 1 RAI = 4.242 USD
-
-    uint256 initETHETHPairLiquidity = 5 ether;
+    uint256 initRAIETHPairLiquidity = 294672324375000000000;  // 1 RAI = 4.242 USD and so we need 294.672324375 of them
 
     uint256 initUSDCRAIPairLiquidity = 4242000;
     uint256 initRAIUSDCPairLiquidity = 1 ether;
@@ -79,25 +73,32 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
     uint256 uniswapMedianizerWindowSize      = 86400;        // 24 hours
     uint256 uniswapMedianizerDefaultAmountIn = 1 ether;
 
+    address me;
+
     function setUp() public {
+        me = address(this);
+
+        hevm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+        hevm.warp(startTime);
+
         // Setup Uniswap
         uniswapFactory = new UniswapV2Factory(address(this));
         createUniswapPairs();
         uniswapRouter  = new UniswapV2Router02(address(uniswapFactory), address(weth));
 
-        // Setup Chainlink medians
-        ethUSDAggregator = new ChainlinkAggregator();
+        // Setup converter medians
+        ethUSDAggregator = new Aggregator();
         ethUSDAggregator.modifyParameters("latestAnswer", int(initETHUSDPrice));
 
-        usdcUSDAggregator = new ChainlinkAggregator();
+        usdcUSDAggregator = new Aggregator();
         usdcUSDAggregator.modifyParameters("latestAnswer", int(initUSDCUSDPrice));
 
-        chainlinkETHPriceFeed = new ChainlinkETHMedianizer(address(ethUSDAggregator));
-        chainlinkUSDCPriceFeed = new ChainlinkUSDCMedianizer(address(usdcUSDAggregator));
+        converterETHPriceFeed = new ETHMedianizer(address(ethUSDAggregator));
+        converterUSDCPriceFeed = new USDCMedianizer(address(usdcUSDAggregator));
 
         // Setup Uniswap medians
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
-            address(chainlinkETHPriceFeed),
+            address(converterETHPriceFeed),
             address(uniswapFactory),
             address(rai),
             address(weth),
@@ -107,7 +108,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
             uniswapMedianizerGranularity
         );
         uniswapRAIUSDCMedianizer = new UniswapPriceFeedMedianizer(
-            address(chainlinkUSDCPriceFeed),
+            address(converterUSDCPriceFeed),
             address(uniswapFactory),
             address(rai),
             address(usdc),
@@ -118,7 +119,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         );
 
         // Add pair liquidity
-        addPairLiquidity(wethWETHCompanionPair, address(weth), address(wethCompanion), initETHETHPairLiquidity, initETHETHPairLiquidity);
         addPairLiquidity(raiWETHPair, address(rai), address(weth), initRAIETHPairLiquidity, initETHRAIPairLiquidity);
         addPairLiquidity(raiUSDCPair, address(rai), address(usdc), initRAIUSDCPairLiquidity, initUSDCRAIPairLiquidity);
     }
@@ -127,7 +127,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
     function createUniswapPairs() internal {
         // Create Tokens
         weth = new WETH9_();
-        wethCompanion = new WETH9_();
 
         rai = new DSToken("RAI");
         rai.mint(initTokenAmount);
@@ -136,11 +135,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
 
         // Create WETH
         weth.deposit{value: initTokenAmount}();
-        wethCompanion.deposit{value: initTokenAmount}();
-
-        // Setup WETH/WETH pair
-        uniswapFactory.createPair(address(weth), address(wethCompanion));
-        wethWETHCompanionPair = UniswapV2Pair(uniswapFactory.getPair(address(weth), address(wethCompanion)));
 
         // Setup WETH/RAI pair
         uniswapFactory.createPair(address(weth), address(rai));
@@ -156,11 +150,47 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         pair.sync();
     }
 
-    function testFail_basic_sanity() public {
-        assertTrue(false);
-    }
+    function test_correct_setup() public {
+        assertEq(uniswapRAIWETHMedianizer.authorizedAccounts(me), 1);
+        assertEq(uniswapRAIUSDCMedianizer.authorizedAccounts(me), 1);
 
-    function test_basic_sanity() public {
-        assertTrue(true);
+        assertTrue(uniswapRAIWETHMedianizer.converterFeed() == address(converterETHPriceFeed));
+        assertTrue(uniswapRAIUSDCMedianizer.converterFeed() == address(converterUSDCPriceFeed));
+
+        assertTrue(uniswapRAIWETHMedianizer.uniswapFactory() == address(uniswapFactory));
+        assertTrue(uniswapRAIUSDCMedianizer.uniswapFactory() == address(uniswapFactory));
+
+        assertEq(uniswapRAIWETHMedianizer.defaultAmountIn(), uniswapMedianizerDefaultAmountIn);
+        assertRq(uniswapRAIUSDCMedianizer.defaultAmountIn(), uniswapMedianizerDefaultAmountIn);
+
+        assertEq(uniswapRAIWETHMedianizer.windowSize(), uniswapMedianizerWindowSize);
+        assertRq(uniswapRAIUSDCMedianizer.windowSize(), uniswapMedianizerWindowSize);
+
+        assertEq(uniswapRAIWETHMedianizer.converterFeedScalingFactor(), converterScalingFactor);
+        assertRq(uniswapRAIUSDCMedianizer.converterFeedScalingFactor(), converterScalingFactor);
+
+        assertEq(uniswapRAIWETHMedianizer.granularity(), uniswapMedianizerGranularity);
+        assertRq(uniswapRAIUSDCMedianizer.granularity(), uniswapMedianizerGranularity);
+
+        assertTrue(uniswapRAIWETHMedianizer.targetToken() == address(rai));
+        assertTrue(uniswapRAIUSDCMedianizer.targetToken() == address(rai));
+
+        assertTrue(uniswapRAIWETHMedianizer.denominationToken() == address(weth));
+        assertTrue(uniswapRAIUSDCMedianizer.denominationToken() == address(usdc));
+
+        assertTrue(uniswapRAIWETHMedianizer.uniswapPair() == address(raiWETHPair));
+        assertTrue(uniswapRAIUSDCMedianizer.uniswapPair() == address(raiUSDCPair));
+    }
+    function testFail_small_granularity() public {
+
+    }
+    function testFail_window_not_evenly_divisible() public {
+
+    }
+    function testFail_null_converter() public {
+
+    }
+    function testFail_inexistent_pair() public {
+
     }
 }

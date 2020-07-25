@@ -3,15 +3,15 @@ pragma solidity ^0.6.7;
 import './utils/uni/IUniswapV2Factory.sol';
 import './utils/uni/IUniswapV2Pair.sol';
 
-import './utils/libs/ModifiedUniswapV2Library.sol';
-import './utils/libs/ModifiedUniswapV2OracleLibrary.sol';
+import './utils/libs/UniswapV2Library.sol';
+import './utils/libs/UniswapV2OracleLibrary.sol';
 
 abstract contract ConverterFeedLike {
     function getResultWithValidity() virtual external view returns (uint256,bool);
     function updateResult() virtual external;
 }
 
-contract UniswapPriceFeedMedianizer is ModifiedUniswapV2Library, ModifiedUniswapV2OracleLibrary {
+contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary {
     // --- Auth ---
     mapping (address => uint) public authorizedAccounts;
     /**
@@ -167,8 +167,10 @@ contract UniswapPriceFeedMedianizer is ModifiedUniswapV2Library, ModifiedUniswap
     function both(bool x, bool y) private pure returns (bool z) {
         assembly{ z := and(x, y)}
     }
-    // @notice Returns the index of the observation corresponding to the given timestamp
-    // @param timestamp The timestamp for which we want to get the index for
+    /**
+    *   @notice Returns the index of the observation corresponding to the given timestamp
+    *   @param timestamp The timestamp for which we want to get the index for
+    **/
     function observationIndexOf(uint timestamp) private view returns (uint8 index) {
         uint epochPeriod = timestamp / periodSize;
         return uint8(epochPeriod % granularity);

@@ -3,8 +3,8 @@ pragma solidity ^0.6.7;
 import '../uni/IUniswapV2Pair.sol';
 import './FixedPointMath.sol';
 
-// library with helper methods for oracles that are concerned with computing average prices
-contract ModifiedUniswapV2OracleLibrary is FixedPointMath {
+// Contract with helper methods for oracles that are concerned with computing average prices
+contract UniswapV2OracleLibrary is FixedPointMath {
     // helper function that returns the current block timestamp within the range of uint32, i.e. [0, 2**32 - 1]
     function currentBlockTimestamp() internal view returns (uint32) {
         return uint32(block.timestamp % 2 ** 32);
