@@ -1,6 +1,11 @@
 pragma solidity ^0.6.7;
 
 import "ds-test/test.sol";
+import "geb-chainlink-median/ChainlinkPriceFeedMedianizer.sol";
+
+import "./uni/UniswapV2ERC20.sol";
+import "./uni/UniswapV2Factory.sol";
+import "./uni/UniswapV2Pair.sol";
 
 import "../UniswapPriceFeedMedianizer.sol";
 

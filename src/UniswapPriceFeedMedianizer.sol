@@ -208,8 +208,10 @@ contract UniswapPriceFeedMedianizer is ModifiedUniswapV2Library, ModifiedUniswap
     }
 
     // --- Uniswap Utils ---
-    // @notice Given the Uniswap cumulative prices of the start and end of a period, and the length of the period, compute the average
-    //         price in terms of how much amount out is received for the amount in.
+    /**
+    *   @notice Given the Uniswap cumulative prices of the start and end of a period, and the length of the period, compute the average
+    *           price in terms of how much amount out is received for the amount in.
+    **/
     function uniswapComputeAmountOut(
         uint256 priceCumulativeStart,
         uint256 priceCumulativeEnd,
