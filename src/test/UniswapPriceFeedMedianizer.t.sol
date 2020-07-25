@@ -6,10 +6,8 @@ import "ds-token/token.sol";
 
 import "./orcl/MockMedianizer.sol";
 
-import "./uni/UniswapV2ERC20.sol";
 import "./uni/UniswapV2Factory.sol";
 import "./uni/UniswapV2Pair.sol";
-import "./uni/UniswapV2Router02.sol";
 
 import { UniswapPriceFeedMedianizer } from  "../UniswapPriceFeedMedianizer.sol";
 
@@ -47,7 +45,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
     UniswapPriceFeedMedianizer uniswapRAIUSDCMedianizer;
 
     UniswapV2Factory uniswapFactory;
-    UniswapV2Router02 uniswapRouter;
 
     UniswapV2Pair raiWETHPair;
     UniswapV2Pair raiUSDCPair;
@@ -93,7 +90,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         // Setup Uniswap
         uniswapFactory = new UniswapV2Factory(address(this));
         createUniswapPairs();
-        uniswapRouter  = new UniswapV2Router02(address(uniswapFactory), address(weth));
 
         // Setup converter medians
         converterETHPriceFeed = new ETHMedianizer();
