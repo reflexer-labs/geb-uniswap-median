@@ -96,6 +96,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     // --- Events ---
     event LogMedianPrice(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
+    event FailedUniswapPairSync(bytes reason);
 
     // --- Modifiers ---
     /**
@@ -267,8 +268,8 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     function updateResult() external {
         // Update the converter's median price first
         try converterFeed.updateResult() {}
-        catch (bytes memory revertReason) {
-          emit FailedConverterFeedUpdate(revertReason);
+        catch (bytes memory converterRevertReason) {
+          emit FailedConverterFeedUpdate(converterRevertReason);
         }
 
         // Get the observation for the current period
@@ -277,6 +278,11 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         // We only want to commit updates once per period (i.e. windowSize / granularity)
         require(timeElapsedSinceLatest > periodSize, "UniswapPriceFeedMedianizer/not-enough-time-elapsed");
 
+        // Update Uniswap pair
+        try IUniswapV2Pair(uniswapPair).sync() {}
+        catch (bytes memory uniswapRevertReason) {
+          emit FailedUniswapPairSync(uniswapRevertReason);
+        }
         // Get Uniswap cumulative prices
         (uint uniswapPrice0Cumulative, uint uniswapPrice1Cumulative,) = currentCumulativePrices(uniswapPair);
 
