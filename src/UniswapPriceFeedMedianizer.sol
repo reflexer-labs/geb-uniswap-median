@@ -190,7 +190,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     * @param price0Cumulative Cumulative price for the first token in the pair
     * @param price1Cumulative Cumulative price for the second token in the pair
     **/
-    function getMedianPrice(uint256 price0Cumulative, uint256 price1Cumulative) private returns (uint256) {
+    function getMedianPrice(uint256 price0Cumulative, uint256 price1Cumulative) private view returns (uint256) {
         (
           UniswapObservation storage firstUniswapObservation,
         ) = getFirstObservationsInWindow();
