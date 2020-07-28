@@ -100,7 +100,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
 
         // Setup Uniswap medians
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
-            address(converterETHPriceFeed),
+            address(0),
             address(uniswapFactory),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
@@ -108,13 +108,17 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
             uniswapMedianizerGranularity
         );
         uniswapRAIUSDCMedianizer = new UniswapPriceFeedMedianizer(
-            address(converterUSDCPriceFeed),
+            address(0),
             address(uniswapFactory),
             uniswapUSDCRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
             uniswapMedianizerGranularity
         );
+
+        // Set converter addresses
+        uniswapRAIWETHMedianizer.modifyParameters("converterFeed", address(converterETHPriceFeed));
+        uniswapRAIUSDCMedianizer.modifyParameters("converterFeed", address(converterUSDCPriceFeed));
 
         // Set target and denomination tokens
         uniswapRAIWETHMedianizer.modifyParameters("targetToken", address(rai));
@@ -279,16 +283,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
             uniswapMedianizerWindowSize,
             converterScalingFactor,
             23
-        );
-    }
-    function testFail_null_converter() public {
-        uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
-            address(0),
-            address(uniswapFactory),
-            uniswapETHRAIMedianizerDefaultAmountIn,
-            uniswapMedianizerWindowSize,
-            converterScalingFactor,
-            uniswapMedianizerGranularity
         );
     }
 
