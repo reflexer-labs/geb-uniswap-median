@@ -125,8 +125,6 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     constructor(
       address converterFeed_,
       address uniswapFactory_,
-      address targetToken_,
-      address denominationToken_,
       uint256 defaultAmountIn_,
       uint256 windowSize_,
       uint256 converterFeedScalingFactor_,
@@ -138,8 +136,6 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
             'UniswapPriceFeedMedianizer/window-not-evenly-divisible'
         );
         require(converterFeed_ != address(0), "UniswapPriceFeedMedianizer/null-converter-feed");
-        uniswapPair                    = IUniswapV2Factory(uniswapFactory_).getPair(targetToken_, denominationToken_);
-        require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-pair");
         authorizedAccounts[msg.sender] = 1;
         converterFeed                  = ConverterFeedLike(converterFeed_);
         uniswapFactory                 = uniswapFactory_;
@@ -147,8 +143,6 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         windowSize                     = windowSize_;
         converterFeedScalingFactor     = converterFeedScalingFactor_;
         granularity                    = granularity_;
-        targetToken                    = targetToken_;
-        denominationToken              = denominationToken_;
         // Populate the arrays with empty observations
         for (uint i = uniswapObservations.length; i < granularity; i++) {
             uniswapObservations.push();
@@ -166,6 +160,20 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         require(data != address(0), "UniswapPriceFeedMedianizer/null-data");
         if (parameter == "converterFeed") {
           converterFeed = ConverterFeedLike(data);
+        }
+        else if (parameter == "targetToken") {
+          targetToken = data;
+          if (denominationToken != address(0)) {
+            uniswapPair = IUniswapV2Factory(uniswapFactory).getPair(targetToken, denominationToken);
+            require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-uniswap-pair");
+          }
+        }
+        else if (parameter == "denominationToken") {
+          denominationToken = data;
+          if (targetToken != address(0)) {
+            uniswapPair = IUniswapV2Factory(uniswapFactory).getPair(targetToken, denominationToken);
+            require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-uniswap-pair");
+          }
         }
         else revert("UniswapPriceFeedMedianizer/modify-unrecognized-param");
     }

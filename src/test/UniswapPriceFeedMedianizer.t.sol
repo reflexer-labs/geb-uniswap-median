@@ -102,8 +102,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
-            address(rai),
-            address(weth),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
@@ -112,13 +110,21 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         uniswapRAIUSDCMedianizer = new UniswapPriceFeedMedianizer(
             address(converterUSDCPriceFeed),
             address(uniswapFactory),
-            address(rai),
-            address(usdc),
             uniswapUSDCRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
             uniswapMedianizerGranularity
         );
+
+        // Set target and denomination tokens
+        uniswapRAIWETHMedianizer.modifyParameters("targetToken", address(rai));
+        uniswapRAIWETHMedianizer.modifyParameters("denominationToken", address(weth));
+
+        uniswapRAIUSDCMedianizer.modifyParameters("targetToken", address(rai));
+        uniswapRAIUSDCMedianizer.modifyParameters("denominationToken", address(usdc));
+
+        assertTrue(uniswapRAIWETHMedianizer.uniswapPair() != address(0));
+        assertTrue(uniswapRAIUSDCMedianizer.uniswapPair() != address(0));
 
         // Add pair liquidity
         addPairLiquidity(raiWETHPair, address(rai), address(weth), initRAIETHPairLiquidity, initETHRAIPairLiquidity);
@@ -259,8 +265,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
-            address(rai),
-            address(weth),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
@@ -271,8 +275,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
-            address(rai),
-            address(weth),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
@@ -283,20 +285,6 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
             address(0),
             address(uniswapFactory),
-            address(rai),
-            address(weth),
-            uniswapETHRAIMedianizerDefaultAmountIn,
-            uniswapMedianizerWindowSize,
-            converterScalingFactor,
-            uniswapMedianizerGranularity
-        );
-    }
-    function testFail_inexistent_pair() public {
-        uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
-            address(converterETHPriceFeed),
-            address(uniswapFactory),
-            address(rai),
-            address(0x1234),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
