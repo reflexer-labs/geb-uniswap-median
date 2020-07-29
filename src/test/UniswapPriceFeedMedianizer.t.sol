@@ -8,6 +8,7 @@ import "./orcl/MockMedianizer.sol";
 
 import "../uni/UniswapV2Factory.sol";
 import "../uni/UniswapV2Pair.sol";
+import "../uni/UniswapV2Router02.sol";
 
 import { UniswapPriceFeedMedianizer } from  "../UniswapPriceFeedMedianizer.sol";
 
@@ -45,6 +46,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
     UniswapPriceFeedMedianizer uniswapRAIUSDCMedianizer;
 
     UniswapV2Factory uniswapFactory;
+    UniswapV2Router02 uniswapRouter;
 
     UniswapV2Pair raiWETHPair;
     UniswapV2Pair raiUSDCPair;
@@ -90,6 +92,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         // Setup Uniswap
         uniswapFactory = new UniswapV2Factory(address(this));
         createUniswapPairs();
+        uniswapRouter = new UniswapV2Router02(address(uniswapFactory), address(weth));
 
         // Setup converter medians
         converterETHPriceFeed = new ETHMedianizer();
@@ -131,8 +134,8 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         assertTrue(uniswapRAIUSDCMedianizer.uniswapPair() != address(0));
 
         // Add pair liquidity
-        addPairLiquidity(raiWETHPair, address(rai), address(weth), initRAIETHPairLiquidity, initETHRAIPairLiquidity);
-        addPairLiquidity(raiUSDCPair, address(rai), address(usdc), initRAIUSDCPairLiquidity, initUSDCRAIPairLiquidity);
+        addPairLiquidityRouter(address(rai), address(weth), initRAIETHPairLiquidity, initETHRAIPairLiquidity);
+        addPairLiquidityRouter(address(rai), address(usdc), initRAIUSDCPairLiquidity, initUSDCRAIPairLiquidity);
     }
 
     // --- Math ---
@@ -161,7 +164,14 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         uniswapFactory.createPair(address(usdc), address(rai));
         raiUSDCPair = UniswapV2Pair(uniswapFactory.getPair(address(usdc), address(rai)));
     }
-    function addPairLiquidity(UniswapV2Pair pair, address token1, address token2, uint256 amount1, uint256 amount2) internal {
+    function addPairLiquidityRouter(address token1, address token2, uint256 amount1, uint256 amount2) internal {
+        DSToken(token1).approve(address(uniswapRouter), uint(-1));
+        DSToken(token2).approve(address(uniswapRouter), uint(-1));
+        uniswapRouter.addLiquidity(token1, token2, amount1, amount2, amount1, amount2, address(this), now);
+        UniswapV2Pair updatedPair = UniswapV2Pair(uniswapFactory.getPair(token1, token2));
+        updatedPair.sync();
+    }
+    function addPairLiquidityTransfer(UniswapV2Pair pair, address token1, address token2, uint256 amount1, uint256 amount2) internal {
         DSToken(token1).transfer(address(pair), amount1);
         DSToken(token2).transfer(address(pair), amount2);
         pair.sync();
@@ -189,12 +199,12 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         hevm.warp(now + 10);
 
         for (i = 0; i < uint(uniswapMedianizerGranularity) / 2; i++) {
-          addPairLiquidity(raiWETHPair, address(rai), address(weth), ethRAISimulationExtraRAI, 0);
+          addPairLiquidityTransfer(raiWETHPair, address(rai), address(weth), ethRAISimulationExtraRAI, 0);
           uniswapRAIWETHMedianizer.updateResult();
           hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
         }
         for (i = 0; i < uint(uniswapMedianizerGranularity) / 2; i++) {
-          addPairLiquidity(raiWETHPair, address(rai), address(weth), 0, ethRAISimulationExtraETH);
+          addPairLiquidityTransfer(raiWETHPair, address(rai), address(weth), 0, ethRAISimulationExtraETH);
           uniswapRAIWETHMedianizer.updateResult();
           hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
         }
@@ -204,12 +214,12 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         hevm.warp(now + 10);
 
         for (i = 0; i < uint(uniswapMedianizerGranularity) / 2; i++) {
-          addPairLiquidity(raiUSDCPair, address(rai), address(usdc), usdcRAISimulationExtraRAI, 0);
+          addPairLiquidityTransfer(raiUSDCPair, address(rai), address(usdc), usdcRAISimulationExtraRAI, 0);
           uniswapRAIUSDCMedianizer.updateResult();
           hevm.warp(now + uniswapRAIUSDCMedianizer.periodSize());
         }
         for (i = 0; i < uint(uniswapMedianizerGranularity) / 2; i++) {
-          addPairLiquidity(raiUSDCPair, address(rai), address(usdc), 0, usdcRAISimulationExtraUSDC);
+          addPairLiquidityTransfer(raiUSDCPair, address(rai), address(usdc), 0, usdcRAISimulationExtraUSDC);
           uniswapRAIUSDCMedianizer.updateResult();
           hevm.warp(now + uniswapRAIUSDCMedianizer.periodSize());
         }
@@ -450,9 +460,9 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
     }
     function test_deep_liquidity_one_round_simulate_prices() public {
         // Add WETH/RAI liquidity
-        addPairLiquidity(raiWETHPair, address(rai), address(weth), initRAIETHPairLiquidity * 10000, initETHRAIPairLiquidity * 10000);
+        addPairLiquidityRouter(address(rai), address(weth), initRAIETHPairLiquidity * 10000, initETHRAIPairLiquidity * 10000);
         // Add USDC/RAI liquidity
-        addPairLiquidity(raiUSDCPair, address(rai), address(usdc), initRAIUSDCPairLiquidity * 10000, initUSDCRAIPairLiquidity * 10000);
+        addPairLiquidityRouter(address(rai), address(usdc), initRAIUSDCPairLiquidity * 10000, initUSDCRAIPairLiquidity * 10000);
 
         // Simulate market making
         simulateWETHRAIPrices();
