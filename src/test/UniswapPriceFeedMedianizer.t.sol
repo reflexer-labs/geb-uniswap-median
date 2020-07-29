@@ -6,8 +6,8 @@ import "ds-token/token.sol";
 
 import "./orcl/MockMedianizer.sol";
 
-import "./uni/UniswapV2Factory.sol";
-import "./uni/UniswapV2Pair.sol";
+import "../uni/UniswapV2Factory.sol";
+import "../uni/UniswapV2Pair.sol";
 
 import { UniswapPriceFeedMedianizer } from  "../UniswapPriceFeedMedianizer.sol";
 

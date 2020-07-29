@@ -1,10 +1,10 @@
 pragma solidity ^0.6.7;
 
-import './utils/uni/IUniswapV2Factory.sol';
-import './utils/uni/IUniswapV2Pair.sol';
+import './uni/interfaces/IUniswapV2Factory.sol';
+import './uni/interfaces/IUniswapV2Pair.sol';
 
-import './utils/libs/UniswapV2Library.sol';
-import './utils/libs/UniswapV2OracleLibrary.sol';
+import './uni/libs/UniswapV2Library.sol';
+import './uni/libs/UniswapV2OracleLibrary.sol';
 
 abstract contract ConverterFeedLike {
     function getResultWithValidity() virtual external view returns (uint256,bool);
@@ -162,14 +162,14 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         }
         else if (parameter == "targetToken") {
           targetToken = data;
-          if (denominationToken != address(0)) {
+          if (both(denominationToken != address(0), uniswapPair == address(0))) {
             uniswapPair = IUniswapV2Factory(uniswapFactory).getPair(targetToken, denominationToken);
             require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-uniswap-pair");
           }
         }
         else if (parameter == "denominationToken") {
           denominationToken = data;
-          if (targetToken != address(0)) {
+          if (both(targetToken != address(0), uniswapPair == address(0))) {
             uniswapPair = IUniswapV2Factory(uniswapFactory).getPair(targetToken, denominationToken);
             require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-uniswap-pair");
           }
@@ -273,6 +273,8 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     * @notice Update the internal median price
     **/
     function updateResult() external {
+        require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-uniswap-pair");
+
         // Update the converter's median price first
         try converterFeed.updateResult() {}
         catch (bytes memory converterRevertReason) {

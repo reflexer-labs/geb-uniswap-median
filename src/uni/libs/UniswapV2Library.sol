@@ -1,6 +1,6 @@
 pragma solidity ^0.6.7;
 
-import '../uni/IUniswapV2Pair.sol';
+import '../interfaces/IUniswapV2Pair.sol';
 
 contract UniswapV2Library {
     // --- Math ---
