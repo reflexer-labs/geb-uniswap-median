@@ -316,10 +316,10 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
           uniswapRAIWETHMedianizer.uniswapObservations(0);
         (uint converterTimestamp, uint converterPrice) = uniswapRAIWETHMedianizer.converterFeedObservations(0);
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
-        uint256 converterPriceTag = uniswapRAIWETHMedianizer.converterPriceTag();
+        uint256 converterPriceCumulative = uniswapRAIWETHMedianizer.converterPriceCumulative();
 
         assertEq(uint256(uniswapRAIWETHMedianizer.observationIndexOf(now)), 0);
-        assertEq(converterPriceTag, initETHUSDPrice);
+        assertEq(converterPriceCumulative, initETHUSDPrice);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
         assertEq(converterTimestamp, now);
@@ -334,10 +334,10 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
           uniswapRAIUSDCMedianizer.uniswapObservations(0);
         (converterTimestamp, converterPrice) = uniswapRAIUSDCMedianizer.converterFeedObservations(0);
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
-        converterPriceTag = uniswapRAIUSDCMedianizer.converterPriceTag();
+        converterPriceCumulative = uniswapRAIUSDCMedianizer.converterPriceCumulative();
 
         assertEq(uint256(uniswapRAIUSDCMedianizer.observationIndexOf(now)), 0);
-        assertEq(converterPriceTag, initUSDCUSDPrice);
+        assertEq(converterPriceCumulative, initUSDCUSDPrice);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
         assertEq(converterTimestamp, now);
@@ -383,10 +383,10 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
           uniswapRAIWETHMedianizer.uniswapObservations(0);
         (uint converterTimestamp, uint converterPrice) = uniswapRAIWETHMedianizer.converterFeedObservations(0);
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
-        uint256 converterPriceTag = uniswapRAIWETHMedianizer.converterPriceTag();
+        uint256 converterPriceCumulative = uniswapRAIWETHMedianizer.converterPriceCumulative();
 
         assertEq(uint256(uniswapRAIWETHMedianizer.observationIndexOf(now)), 0);
-        assertEq(converterPriceTag, initETHUSDPrice);
+        assertEq(converterPriceCumulative, initETHUSDPrice);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
         assertEq(converterTimestamp, now);
@@ -401,10 +401,10 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
           uniswapRAIUSDCMedianizer.uniswapObservations(0);
         (converterTimestamp, converterPrice) = uniswapRAIUSDCMedianizer.converterFeedObservations(0);
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
-        converterPriceTag = uniswapRAIUSDCMedianizer.converterPriceTag();
+        converterPriceCumulative = uniswapRAIUSDCMedianizer.converterPriceCumulative();
 
         assertEq(uint256(uniswapRAIUSDCMedianizer.observationIndexOf(now)), 0);
-        assertEq(converterPriceTag, initUSDCUSDPrice);
+        assertEq(converterPriceCumulative, initUSDCUSDPrice);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
         assertEq(converterTimestamp, now);
