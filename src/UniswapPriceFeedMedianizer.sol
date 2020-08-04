@@ -258,10 +258,11 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     }
 
     // --- Treasury Utils ---
-    function rewardCaller(address feeReceiver) internal {
-        if (either(address(treasury) == feeReceiver, feeReceiver == address(0))) return;
+    function rewardCaller(address proposedFeeReceiver) internal {
+        if (address(treasury) == proposedFeeReceiver) return;
         if (either(address(treasury) == address(0), updateCallerReward == 0)) return;
-        try treasury.pullFunds(feeReceiver, treasury.systemCoin(), updateCallerReward) {}
+        address finalFeeReceiver = (proposedFeeReceiver == address(0)) ? msg.sender : proposedFeeReceiver;
+        try treasury.pullFunds(finalFeeReceiver, treasury.systemCoin(), updateCallerReward) {}
         catch(bytes memory revertReason) {}
     }
 
