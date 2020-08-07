@@ -100,9 +100,10 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     StabilityFeeTreasuryLike  public treasury;
 
     // --- Events ---
-    event LogMedianPrice(uint256 medianPrice, uint256 lastUpdateTime);
+    event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
     event FailedUniswapPairSync(bytes reason);
+    event RewardCaller(address feeReceiver, uint256 updateCallerReward);
 
     // --- Modifiers ---
     /**
@@ -262,7 +263,9 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         if (address(treasury) == proposedFeeReceiver) return;
         if (either(address(treasury) == address(0), updateCallerReward == 0)) return;
         address finalFeeReceiver = (proposedFeeReceiver == address(0)) ? msg.sender : proposedFeeReceiver;
-        try treasury.pullFunds(finalFeeReceiver, treasury.systemCoin(), updateCallerReward) {}
+        try treasury.pullFunds(finalFeeReceiver, treasury.systemCoin(), updateCallerReward) {
+          emit RewardCaller(finalFeeReceiver, updateCallerReward);
+        }
         catch(bytes memory revertReason) {}
     }
 
@@ -334,6 +337,8 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         // Calculate latest medianPrice
         medianPrice    = getMedianPrice(uniswapPrice0Cumulative, uniswapPrice1Cumulative);
         lastUpdateTime = uint32(now);
+
+        emit UpdateResult(medianPrice, lastUpdateTime);
 
         // Reward caller
         rewardCaller(feeReceiver);
