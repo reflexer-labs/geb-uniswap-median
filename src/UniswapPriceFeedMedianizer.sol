@@ -24,6 +24,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
      */
     function addAuthorization(address account) external emitLog isAuthorized {
         authorizedAccounts[account] = 1;
+        emit AddAuthorization(account);
     }
     /**
      * @notice Remove auth from an account
@@ -31,6 +32,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
      */
     function removeAuthorization(address account) external emitLog isAuthorized {
         authorizedAccounts[account] = 0;
+        emit RemoveAuthorization(account);
     }
     /**
     * @notice Checks whether msg.sender can call an authed function
@@ -104,6 +106,8 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     event FailedConverterFeedUpdate(bytes reason);
     event FailedUniswapPairSync(bytes reason);
     event RewardCaller(address feeReceiver, uint256 updateCallerReward);
+    event AddAuthorization(address account);
+    event RemoveAuthorization(address account);
 
     // --- Modifiers ---
     /**
