@@ -102,6 +102,8 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     StabilityFeeTreasuryLike  public treasury;
 
     // --- Events ---
+    event ModifyParameters(bytes32 parameter, address data);
+    event ModifyParameters(bytes32 parameter, uint256 data);
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
     event FailedUniswapPairSync(bytes reason);
@@ -165,6 +167,10 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
             uniswapObservations.push();
             converterFeedObservations.push();
         }
+        emit AddAuthorization(msg.sender);
+        emit ModifyParameters(bytes32("treasury"), treasury_);
+        emit ModifyParameters(bytes32("converterFeed"), converterFeed_);
+        emit ModifyParameters(bytes32("updateCallerReward"), updateCallerReward_);
     }
 
     // --- Administration ---
@@ -197,10 +203,12 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
           }
         }
         else revert("UniswapPriceFeedMedianizer/modify-unrecognized-param");
+        emit ModifyParameters(parameter, data);
     }
     function modifyParameters(bytes32 parameter, uint256 data) external emitLog isAuthorized {
         if (parameter == "updateCallerReward") updateCallerReward = data;
         else revert("UniswapPriceFeedMedianizer/modify-unrecognized-param");
+        emit ModifyParameters(parameter, data);
     }
 
     // --- General Utils ---
