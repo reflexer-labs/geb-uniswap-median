@@ -22,7 +22,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
      * @notice Add auth to an account
      * @param account Account to add auth to
      */
-    function addAuthorization(address account) external emitLog isAuthorized {
+    function addAuthorization(address account) external isAuthorized {
         authorizedAccounts[account] = 1;
         emit AddAuthorization(account);
     }
@@ -30,7 +30,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
      * @notice Remove auth from an account
      * @param account Account to remove auth from
      */
-    function removeAuthorization(address account) external emitLog isAuthorized {
+    function removeAuthorization(address account) external isAuthorized {
         authorizedAccounts[account] = 0;
         emit RemoveAuthorization(account);
     }
@@ -111,30 +111,6 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     event AddAuthorization(address account);
     event RemoveAuthorization(address account);
 
-    // --- Modifiers ---
-    /**
-    * @notice Log an 'anonymous' event with a constant 6 words of calldata
-    *         and four indexed topics: the selector and the first three args
-    **/
-    modifier emitLog {
-        //
-        //
-        _;
-        assembly {
-            let mark := mload(0x40)                   // end of memory ensures zero
-            mstore(0x40, add(mark, 288))              // update free memory pointer
-            mstore(mark, 0x20)                        // bytes type data offset
-            mstore(add(mark, 0x20), 224)              // bytes size (padded)
-            calldatacopy(add(mark, 0x40), 0, 224)     // bytes payload
-            log4(mark, 288,                           // calldata
-                 shl(224, shr(224, calldataload(0))), // msg.sig
-                 calldataload(4),                     // arg1
-                 calldataload(36),                    // arg2
-                 calldataload(68)                     // arg3
-                )
-        }
-    }
-
     constructor(
       address converterFeed_,
       address uniswapFactory_,
@@ -179,7 +155,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     * @param parameter Name of the parameter to modify
     * @param data New parameter value
     **/
-    function modifyParameters(bytes32 parameter, address data) external emitLog isAuthorized {
+    function modifyParameters(bytes32 parameter, address data) external isAuthorized {
         require(data != address(0), "UniswapPriceFeedMedianizer/null-data");
         if (parameter == "converterFeed") {
           converterFeed = ConverterFeedLike(data);
@@ -205,7 +181,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         else revert("UniswapPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
-    function modifyParameters(bytes32 parameter, uint256 data) external emitLog isAuthorized {
+    function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
         if (parameter == "updateCallerReward") updateCallerReward = data;
         else revert("UniswapPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
