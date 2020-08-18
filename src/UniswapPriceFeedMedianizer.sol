@@ -88,6 +88,8 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     uint8   public granularity;
     // When the price feed was last updated
     uint32  public lastUpdateTime;
+    // Contract creation time
+    uint256 public updates;
     // The desired amount of time over which the moving average should be computed, e.g. 24 hours
     uint256 public windowSize;
     // This is redundant with granularity and windowSize, but stored for gas savings & informational purposes.
@@ -325,6 +327,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         // Calculate latest medianPrice
         medianPrice    = getMedianPrice(uniswapPrice0Cumulative, uniswapPrice1Cumulative);
         lastUpdateTime = uint32(now);
+        updates        = addition(updates, 1);
 
         emit UpdateResult(medianPrice, lastUpdateTime);
 
@@ -367,13 +370,13 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     * @notice Fetch the latest medianPrice or revert if is is null
     **/
     function read() external view returns (uint256) {
-        require(medianPrice > 0, "UniswapPriceFeedMedianizer/invalid-price-feed");
+        require(both(medianPrice > 0, updates >= granularity), "UniswapPriceFeedMedianizer/invalid-price-feed");
         return medianPrice;
     }
     /**
     * @notice Fetch the latest medianPrice and whether it is null or not
     **/
     function getResultWithValidity() external view returns (uint256, bool) {
-        return (medianPrice, medianPrice > 0);
+        return (medianPrice, both(medianPrice > 0, updates >= granularity));
     }
 }
