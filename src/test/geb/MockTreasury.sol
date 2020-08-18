@@ -27,6 +27,14 @@ abstract contract SystemCoinLike {
 contract MockTreasury {
     SystemCoinLike  public systemCoin;
 
+    // --- Structs ---
+    struct Allowance {
+        uint total;
+        uint perBlock;
+    }
+
+    mapping(address => Allowance) private allowance;
+
     modifier accountNotTreasury(address account) {
         require(account != address(this), "MockTreasury/account-cannot-be-treasury");
         _;
@@ -43,6 +51,20 @@ contract MockTreasury {
         require(y == 0 || (z = x * y) / y == x);
     }
 
+    function getAllowance(address account) public view returns (uint256, uint256) {
+        return (allowance[account].total, allowance[account].perBlock);
+    }
+
+    function setTotalAllowance(address account, uint rad) external {
+        require(account != address(0), "MockTreasury/null-account");
+        allowance[account].total = rad;
+    }
+
+    function setPerBlockAllowance(address account, uint rad) external {
+        require(account != address(0), "MockTreasury/null-account");
+        allowance[account].perBlock = rad;
+    }
+
     function pullFunds(address dstAccount, address token, uint wad) external accountNotTreasury(dstAccount) {
         require(dstAccount != address(0), "MockTreasury/null-dst");
         require(wad > 0, "MockTreasury/null-transfer-amount");
@@ -56,8 +78,30 @@ contract MockTreasury {
 contract MockRevertableTreasury {
     SystemCoinLike  public systemCoin;
 
+    // --- Structs ---
+    struct Allowance {
+        uint total;
+        uint perBlock;
+    }
+
+    mapping(address => Allowance) private allowance;
+
     constructor() public {
         systemCoin = SystemCoinLike(address(0x123));
+    }
+
+    function getAllowance(address account) public view returns (uint256, uint256) {
+        return (allowance[account].total, allowance[account].perBlock);
+    }
+
+    function setTotalAllowance(address account, uint rad) external {
+        require(account != address(0), "MockRevertableTreasury/null-account");
+        allowance[account].total = rad;
+    }
+
+    function setPerBlockAllowance(address account, uint rad) external {
+        require(account != address(0), "MockRevertableTreasury/null-account");
+        allowance[account].perBlock = rad;
     }
 
     function pullFunds(address dstAccount, address token, uint wad) external {
