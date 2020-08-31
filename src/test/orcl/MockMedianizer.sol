@@ -28,7 +28,7 @@ contract MockMedianizer {
         return (medianPrice, medianPrice > 0);
     }
 
-    function updateResult() external {
+    function updateResult(address feeReceiver) external {
         if (revertUpdate > 0) revert();
     }
 }

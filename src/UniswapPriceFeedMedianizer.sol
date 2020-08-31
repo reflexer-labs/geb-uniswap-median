@@ -8,7 +8,7 @@ import './uni/libs/UniswapV2OracleLibrary.sol';
 
 abstract contract ConverterFeedLike {
     function getResultWithValidity() virtual external view returns (uint256,bool);
-    function updateResult() virtual external;
+    function updateResult(address) virtual external;
 }
 abstract contract StabilityFeeTreasuryLike {
     function getAllowance(address) virtual external view returns (uint, uint);
@@ -51,7 +51,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     }
     struct ConverterFeedObservation {
         uint timestamp;
-        uint  price;
+        uint price;
     }
 
     // --- Uniswap Vars ---
@@ -89,7 +89,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     uint8   public granularity;
     // When the price feed was last updated
     uint256 public lastUpdateTime;
-    // Contract creation time
+    // Total number of updates
     uint256 public updates;
     // The desired amount of time over which the moving average should be computed, e.g. 24 hours
     uint256 public windowSize;
@@ -140,6 +140,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         );
         require(maxUpdateCallerReward_ > baseUpdateCallerReward_, "UniswapPriceFeedMedianizer/invalid-max-reward");
         require(perSecondCallerRewardIncrease_ >= RAY, "UniswapPriceFeedMedianizer/invalid-reward-increase");
+        require(converterFeed_ != address(0), "UniswapPriceFeedMedianizer/null-converter");
         if (address(treasury_) != address(0)) {
           require(StabilityFeeTreasuryLike(treasury_).systemCoin() != address(0), "UniswapPriceFeedMedianizer/treasury-coin-not-set");
         }
@@ -213,6 +214,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     function modifyParameters(bytes32 parameter, address data) external isAuthorized {
         require(data != address(0), "UniswapPriceFeedMedianizer/null-data");
         if (parameter == "converterFeed") {
+          require(data != address(0), "UniswapPriceFeedMedianizer/null-converter-feed");
           converterFeed = ConverterFeedLike(data);
         }
         else if (parameter == "treasury") {
@@ -390,8 +392,11 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     function updateResult(address feeReceiver) external {
         require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-uniswap-pair");
 
+        // Get final fee receiver
+        address finalFeeReceiver = (feeReceiver == address(0)) ? msg.sender : feeReceiver;
+
         // Update the converter's median price first
-        try converterFeed.updateResult() {}
+        try converterFeed.updateResult(finalFeeReceiver) {}
         catch (bytes memory converterRevertReason) {
           emit FailedConverterFeedUpdate(converterRevertReason);
         }

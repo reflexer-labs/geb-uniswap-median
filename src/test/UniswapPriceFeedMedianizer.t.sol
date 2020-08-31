@@ -118,7 +118,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
 
         // Setup Uniswap medians
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
-            address(0),
+            address(0x1),
             address(uniswapFactory),
             address(treasury),
             uniswapETHRAIMedianizerDefaultAmountIn,
@@ -130,7 +130,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
             uniswapMedianizerGranularity
         );
         uniswapRAIUSDCMedianizer = new UniswapPriceFeedMedianizer(
-            address(0),
+            address(0x1),
             address(uniswapFactory),
             address(treasury),
             uniswapUSDCRAIMedianizerDefaultAmountIn,
