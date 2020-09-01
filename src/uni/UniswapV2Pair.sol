@@ -49,7 +49,7 @@ contract UniswapV2Pair is UQ112x112, Math, SafeMath {
     string public constant name = 'Uniswap V2';
     string public constant symbol = 'UNI-V2';
     uint8 public constant decimals = 18;
-    uint totalSupply;
+    uint public totalSupply;
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
 

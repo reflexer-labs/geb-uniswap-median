@@ -326,6 +326,12 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         (uniObservationsListLength, converterObservationsListLength) = uniswapRAIUSDCMedianizer.getObservationListLength();
         assertEq(uniObservationsListLength, converterObservationsListLength);
         assertTrue(uniObservationsListLength > 0);
+
+        assertEq(raiWETHPair.balanceOf(address(this)), 38384392946547948802);
+        assertEq(raiUSDCPair.balanceOf(address(this)), 2059611612872);
+
+        assertEq(raiWETHPair.totalSupply(), 38384392946547948802);
+        assertEq(raiUSDCPair.totalSupply(), 2059611612872);
     }
     function testFail_small_granularity() public {
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
