@@ -22,9 +22,9 @@ contract UniswapV2Factory is IUniswapV2Factory {
 
     // TODO: uncomment requires after fixing the testchain deployment scripts
     function createPair(address tokenA, address tokenB) override external returns (address pair) {
-        require(tokenA != tokenB, 'UniswapV2: IDENTICAL_ADDRESSES');
+        // require(tokenA != tokenB, 'UniswapV2: IDENTICAL_ADDRESSES');
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        require(token0 != address(0), 'UniswapV2: ZERO_ADDRESS');
+        // require(token0 != address(0), 'UniswapV2: ZERO_ADDRESS');
         // require(getPair[token0][token1] == address(0), 'UniswapV2: PAIR_EXISTS'); // single check is sufficient
         pair = address(new UniswapV2Pair());
         UniswapV2Pair(pair).initialize(token0, token1);

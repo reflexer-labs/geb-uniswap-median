@@ -330,8 +330,8 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         assertEq(raiWETHPair.balanceOf(address(this)), 38384392946547948802);
         assertEq(raiUSDCPair.balanceOf(address(this)), 2059611612872);
 
-        assertEq(raiWETHPair.totalSupply(), 38384392946547948802);
-        assertEq(raiUSDCPair.totalSupply(), 2059611612872);
+        assertEq(raiWETHPair.totalSupply(), 38384392946547949802);
+        assertEq(raiUSDCPair.totalSupply(), 2059611613872);
     }
     function testFail_small_granularity() public {
         uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
