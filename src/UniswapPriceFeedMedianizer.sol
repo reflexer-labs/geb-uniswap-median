@@ -137,6 +137,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         require(uniswapFactory_ != address(0), "UniswapPriceFeedMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapPriceFeedMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapPriceFeedMedianizer/null-window-size');
+        require(converterFeedScalingFactor_ > 0, 'UniswapPriceFeedMedianizer/null-feed-scaling-factor');
         require(
             (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
             'UniswapPriceFeedMedianizer/window-not-evenly-divisible'
@@ -370,6 +371,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         uint256 timeElapsed,
         uint256 amountIn
     ) public pure returns (uint256 amountOut) {
+        require(timeElapsed > 0, "UniswapPriceFeedMedianizer/null-time-elapsed");
         // Overflow is desired
         uq112x112 memory priceAverage = uq112x112(
             uint224((priceCumulativeEnd - priceCumulativeStart) / timeElapsed)
