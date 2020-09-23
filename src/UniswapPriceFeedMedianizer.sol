@@ -385,7 +385,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
     function converterComputeAmountOut(
         uint256 amountIn
     ) public view returns (uint256 amountOut) {
-        uint256 priceAverage = converterPriceCumulative / subtract(uint(granularity), 1);
+        uint256 priceAverage = converterPriceCumulative / uint(granularity);
         amountOut            = multiply(amountIn, priceAverage) / converterFeedScalingFactor;
     }
 
@@ -459,12 +459,15 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         latestUniswapObservation.price0Cumulative = uniswapPrice0Cumulative;
         latestUniswapObservation.price1Cumulative = uniswapPrice1Cumulative;
 
-        (
-          ,
-          ConverterFeedObservation storage firstConverterFeedObservation
-        ) = getFirstObservationsInWindow();
         converterPriceCumulative = addition(converterPriceCumulative, latestConverterFeedObservation.price);
-        converterPriceCumulative = subtract(converterPriceCumulative, firstConverterFeedObservation.price);
+
+        if (updates >= granularity) {
+          (
+            ,
+            ConverterFeedObservation storage firstConverterFeedObservation
+          ) = getFirstObservationsInWindow();
+          converterPriceCumulative = subtract(converterPriceCumulative, firstConverterFeedObservation.price);
+        }
     }
 
     // --- Getters ---
