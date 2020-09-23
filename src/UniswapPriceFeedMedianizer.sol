@@ -136,6 +136,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
         require(converterFeed_ != address(0), "UniswapPriceFeedMedianizer/null-converter-feed");
         require(uniswapFactory_ != address(0), "UniswapPriceFeedMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapPriceFeedMedianizer/null-granularity');
+        require(windowSize_ > 0, 'UniswapPriceFeedMedianizer/null-window-size');
         require(
             (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
             'UniswapPriceFeedMedianizer/window-not-evenly-divisible'
