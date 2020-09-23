@@ -224,15 +224,17 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
       	  treasury = StabilityFeeTreasuryLike(data);
       	}
         else if (parameter == "targetToken") {
+          require(uniswapPair == address(0), "UniswapPriceFeedMedianizer/pair-already-set");
           targetToken = data;
-          if (both(denominationToken != address(0), uniswapPair == address(0))) {
+          if (denominationToken != address(0)) {
             uniswapPair = uniswapFactory.getPair(targetToken, denominationToken);
             require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-uniswap-pair");
           }
         }
         else if (parameter == "denominationToken") {
+          require(uniswapPair == address(0), "UniswapPriceFeedMedianizer/pair-already-set");
           denominationToken = data;
-          if (both(targetToken != address(0), uniswapPair == address(0))) {
+          if (targetToken != address(0)) {
             uniswapPair = uniswapFactory.getPair(targetToken, denominationToken);
             require(uniswapPair != address(0), "UniswapPriceFeedMedianizer/null-uniswap-pair");
           }
