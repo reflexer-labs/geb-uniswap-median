@@ -289,7 +289,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
           UniswapObservation storage firstUniswapObservation,
         ) = getFirstObservationsInWindow();
 
-        uint timeElapsedSinceFirstUniObservation = now - firstUniswapObservation.timestamp;
+        uint timeElapsedSinceFirstUniObservation = subtract(now, firstUniswapObservation.timestamp);
         // We can only fetch a brand new median price if there's been enough price data gathered
         if (both(timeElapsedSinceFirstUniObservation <= windowSize, timeElapsedSinceFirstUniObservation >= windowSize - periodSize * 2)) {
           (address token0,) = sortTokens(targetToken, denominationToken);
@@ -408,7 +408,7 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
 
         // Get the observation for the current period
         uint8 observationIndex         = observationIndexOf(now);
-        uint256 timeElapsedSinceLatest = now - uniswapObservations[observationIndex].timestamp;
+        uint256 timeElapsedSinceLatest = subtract(now, uniswapObservations[observationIndex].timestamp);
         // We only want to commit updates once per period (i.e. windowSize / granularity)
         require(timeElapsedSinceLatest > periodSize, "UniswapPriceFeedMedianizer/not-enough-time-elapsed");
 
