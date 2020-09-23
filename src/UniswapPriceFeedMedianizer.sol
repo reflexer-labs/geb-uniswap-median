@@ -133,6 +133,8 @@ contract UniswapPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary 
       uint256 perSecondCallerRewardIncrease_,
       uint8   granularity_
     ) public {
+        require(converterFeed_ != address(0), "UniswapPriceFeedMedianizer/null-converter-feed");
+        require(uniswapFactory_ != address(0), "UniswapPriceFeedMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapPriceFeedMedianizer/null-granularity');
         require(
             (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
