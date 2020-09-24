@@ -11,7 +11,7 @@ import "../uni/UniswapV2Factory.sol";
 import "../uni/UniswapV2Pair.sol";
 import "../uni/UniswapV2Router02.sol";
 
-import { UniswapPriceFeedMedianizer } from  "../UniswapPriceFeedMedianizer.sol";
+import { UniswapConsecutiveSlotsPriceFeedMedianizer } from  "../UniswapConsecutiveSlotsPriceFeedMedianizer.sol";
 
 abstract contract Hevm {
     function warp(uint256) virtual public;
@@ -37,7 +37,7 @@ contract USDCMedianizer is MockMedianizer {
     }
 }
 
-contract UniswapPriceFeedMedianizerTest is DSTest {
+contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
     Hevm hevm;
 
     MockTreasury treasury;
@@ -45,8 +45,8 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
     ETHMedianizer converterETHPriceFeed;
     USDCMedianizer converterUSDCPriceFeed;
 
-    UniswapPriceFeedMedianizer uniswapRAIWETHMedianizer;
-    UniswapPriceFeedMedianizer uniswapRAIUSDCMedianizer;
+    UniswapConsecutiveSlotsPriceFeedMedianizer uniswapRAIWETHMedianizer;
+    UniswapConsecutiveSlotsPriceFeedMedianizer uniswapRAIUSDCMedianizer;
 
     UniswapV2Factory uniswapFactory;
     UniswapV2Router02 uniswapRouter;
@@ -117,7 +117,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         rai.transfer(address(treasury), 5000 * baseCallerReward);
 
         // Setup Uniswap medians
-        uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
+        uniswapRAIWETHMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
             address(0x1),
             address(uniswapFactory),
             address(treasury),
@@ -129,7 +129,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
             perSecondCallerRewardIncrease,
             uniswapMedianizerGranularity
         );
-        uniswapRAIUSDCMedianizer = new UniswapPriceFeedMedianizer(
+        uniswapRAIUSDCMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
             address(0x1),
             address(uniswapFactory),
             address(treasury),
@@ -213,19 +213,26 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
 
     // --- Simulation Utils ---
     function simulateETHRAISamePrices() internal {
-        hevm.warp(now + 10);
-        for (uint i = 0; i < uint(uniswapMedianizerGranularity) + 2; i++) {
+        for (uint i = 0; i < uint(uniswapMedianizerGranularity) + 1; i++) {
+          hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
           uniswapRAIWETHMedianizer.updateResult(address(alice));
           raiWETHPair.sync();
-          hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
         }
     }
     function simulateUSDCRAISamePrices() internal {
-        hevm.warp(now + 10);
-        for (uint i = 0; i < uint(uniswapMedianizerGranularity) + 2; i++) {
+        for (uint i = 0; i < uint(uniswapMedianizerGranularity) + 1; i++) {
+          hevm.warp(now + uniswapRAIUSDCMedianizer.periodSize());
           uniswapRAIUSDCMedianizer.updateResult(address(alice));
           raiUSDCPair.sync();
+        }
+    }
+    function simulateBothOraclesSamePrices() internal {
+        for (uint i = 0; i < uint(uniswapMedianizerGranularity) * 2; i++) {
           hevm.warp(now + uniswapRAIUSDCMedianizer.periodSize());
+          uniswapRAIWETHMedianizer.updateResult(address(alice));
+          uniswapRAIUSDCMedianizer.updateResult(address(alice));
+          raiWETHPair.sync();
+          raiUSDCPair.sync();
         }
     }
     function simulateWETHRAIPrices() internal {
@@ -256,6 +263,29 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
           addPairLiquidityTransfer(raiUSDCPair, address(rai), address(usdc), 0, usdcRAISimulationExtraUSDC);
           uniswapRAIUSDCMedianizer.updateResult(address(alice));
           hevm.warp(now + uniswapRAIUSDCMedianizer.periodSize());
+        }
+    }
+    function simulatedBothOraclesPrices() public {
+        uint256 i;
+        hevm.warp(now + 10);
+
+        for (i = 0; i < uint(uniswapMedianizerGranularity) / 2; i++) {
+          addPairLiquidityTransfer(raiWETHPair, address(rai), address(weth), ethRAISimulationExtraRAI, 0);
+          uniswapRAIWETHMedianizer.updateResult(address(alice));
+
+          addPairLiquidityTransfer(raiUSDCPair, address(rai), address(usdc), usdcRAISimulationExtraRAI, 0);
+          uniswapRAIUSDCMedianizer.updateResult(address(alice));
+
+          hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
+        }
+        for (i = 0; i < uint(uniswapMedianizerGranularity) / 2; i++) {
+          addPairLiquidityTransfer(raiWETHPair, address(rai), address(weth), 0, ethRAISimulationExtraETH);
+          uniswapRAIWETHMedianizer.updateResult(address(alice));
+
+          addPairLiquidityTransfer(raiUSDCPair, address(rai), address(usdc), 0, usdcRAISimulationExtraUSDC);
+          uniswapRAIUSDCMedianizer.updateResult(address(alice));
+
+          hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
         }
     }
 
@@ -321,11 +351,11 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
 
         (uint256 uniObservationsListLength, uint256 converterObservationsListLength) = uniswapRAIWETHMedianizer.getObservationListLength();
         assertEq(uniObservationsListLength, converterObservationsListLength);
-        assertTrue(uniObservationsListLength > 0);
+        assertTrue(uniObservationsListLength == 0);
 
         (uniObservationsListLength, converterObservationsListLength) = uniswapRAIUSDCMedianizer.getObservationListLength();
         assertEq(uniObservationsListLength, converterObservationsListLength);
-        assertTrue(uniObservationsListLength > 0);
+        assertTrue(uniObservationsListLength == 0);
 
         assertEq(raiWETHPair.balanceOf(address(this)), 38384392946547948802);
         assertEq(raiUSDCPair.balanceOf(address(this)), 2059611612872);
@@ -334,7 +364,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         assertEq(raiUSDCPair.totalSupply(), 2059611613872);
     }
     function testFail_small_granularity() public {
-        uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
+        uniswapRAIWETHMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
             address(treasury),
@@ -348,7 +378,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         );
     }
     function testFail_max_reward_smaller_than_base() public {
-        uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
+        uniswapRAIWETHMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
             address(treasury),
@@ -362,7 +392,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         );
     }
     function testFail_negative_reward_increase() public {
-        uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
+        uniswapRAIWETHMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
             address(treasury),
@@ -376,7 +406,7 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         );
     }
     function testFail_window_not_evenly_divisible() public {
-        uniswapRAIWETHMedianizer = new UniswapPriceFeedMedianizer(
+        uniswapRAIWETHMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
             address(treasury),
@@ -411,16 +441,16 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         uint256 converterPriceCumulative = uniswapRAIWETHMedianizer.converterPriceCumulative();
 
-        assertEq(uint256(uniswapRAIWETHMedianizer.observationIndexOf(now)), 0);
-        assertEq(converterPriceCumulative, initETHUSDPrice);
+        assertEq(uint256(uniswapRAIWETHMedianizer.earliestObservationIndex()), 0);
+        assertEq(converterPriceCumulative, initETHUSDPrice * 3599);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
         assertEq(converterTimestamp, now);
-        assertEq(converterPrice, initETHUSDPrice);
+        assertEq(converterPrice, initETHUSDPrice * 3599);
         assertEq(uniTimestamp, now);
         assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
         assertEq(price1Cumulative, 317082312251449702080310206411507700);
-        assertEq(rai.balanceOf(alice), baseCallerReward);
+        assertEq(rai.balanceOf(alice), 0);
         assertEq(uniswapRAIWETHMedianizer.updates(), 1);
 
         // RAI/USDC
@@ -431,16 +461,16 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         converterPriceCumulative = uniswapRAIUSDCMedianizer.converterPriceCumulative();
 
-        assertEq(uint256(uniswapRAIUSDCMedianizer.observationIndexOf(now)), 0);
-        assertEq(converterPriceCumulative, initUSDCUSDPrice);
+        assertEq(uint256(uniswapRAIUSDCMedianizer.earliestObservationIndex()), 0);
+        assertEq(converterPriceCumulative, initUSDCUSDPrice * 3599);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
         assertEq(converterTimestamp, now);
-        assertEq(converterPrice, initUSDCUSDPrice);
+        assertEq(converterPrice, initUSDCUSDPrice * 3599);
         assertEq(uniTimestamp, now);
         assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
         assertEq(price1Cumulative, 79270578062783154942013374);
-        assertEq(rai.balanceOf(alice), 2 * baseCallerReward);
+        assertEq(rai.balanceOf(alice), 0);
         assertEq(uniswapRAIUSDCMedianizer.updates(), 1);
     }
     function testFail_read_raieth_before_passing_granularity() public {
@@ -550,12 +580,12 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         uint256 converterPriceCumulative = uniswapRAIWETHMedianizer.converterPriceCumulative();
 
-        assertEq(uint256(uniswapRAIWETHMedianizer.observationIndexOf(now)), 0);
-        assertEq(converterPriceCumulative, initETHUSDPrice);
+        assertEq(uint256(uniswapRAIWETHMedianizer.earliestObservationIndex()), 0);
+        assertEq(converterPriceCumulative, initETHUSDPrice * 3599);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
         assertEq(converterTimestamp, now);
-        assertEq(converterPrice, initETHUSDPrice);
+        assertEq(converterPrice, initETHUSDPrice * 3599);
         assertEq(uniTimestamp, now);
         assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
         assertEq(price1Cumulative, 317082312251449702080310206411507700);
@@ -568,22 +598,31 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         converterPriceCumulative = uniswapRAIUSDCMedianizer.converterPriceCumulative();
 
-        assertEq(uint256(uniswapRAIUSDCMedianizer.observationIndexOf(now)), 0);
-        assertEq(converterPriceCumulative, initUSDCUSDPrice);
+        assertEq(uint256(uniswapRAIUSDCMedianizer.earliestObservationIndex()), 0);
+        assertEq(converterPriceCumulative, initUSDCUSDPrice * 3599);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
         assertEq(converterTimestamp, now);
-        assertEq(converterPrice, initUSDCUSDPrice);
+        assertEq(converterPrice, initUSDCUSDPrice * 3599);
         assertEq(uniTimestamp, now);
         assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
         assertEq(price1Cumulative, 79270578062783154942013374);
     }
     function test_simulate_same_prices() public {
-        simulateETHRAISamePrices();
-        simulateUSDCRAISamePrices();
+        simulateBothOraclesSamePrices();
 
-        assertEq(uniswapRAIWETHMedianizer.converterComputeAmountOut(10**18), initETHUSDPrice);
-        assertEq(uniswapRAIUSDCMedianizer.converterComputeAmountOut(10**18), initUSDCUSDPrice);
+        assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative(), initETHUSDPrice * uniswapRAIWETHMedianizer.periodSize() * uniswapMedianizerGranularity);
+        assertEq(
+          uniswapRAIWETHMedianizer.converterComputeAmountOut(
+            uniswapRAIUSDCMedianizer.periodSize() * uniswapMedianizerGranularity, 10**18
+          ), initETHUSDPrice
+        );
+        assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative(), initUSDCUSDPrice * uniswapRAIUSDCMedianizer.periodSize() * uniswapMedianizerGranularity);
+        assertEq(
+          uniswapRAIUSDCMedianizer.converterComputeAmountOut(
+            uniswapRAIUSDCMedianizer.periodSize() * uniswapMedianizerGranularity, 10**18
+          ), initUSDCUSDPrice
+        );
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
@@ -595,42 +634,29 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         assertTrue(isValid);
         assertEq(medianPrice, 4241999999999999999);
 
-        assertTrue(
-          rai.balanceOf(address(alice)) > baseCallerReward * uint(uniswapMedianizerGranularity) * 2 &&
-          rai.balanceOf(address(alice)) < baseCallerReward * uint(uniswapMedianizerGranularity) * 3
-        );
-
         uint observedPrice;
         for (uint i = 0; i < uniswapMedianizerGranularity; i++) {
             (, observedPrice) = uniswapRAIWETHMedianizer.converterFeedObservations(i);
-            assertEq(observedPrice, initETHUSDPrice);
+            assertEq(observedPrice, initETHUSDPrice * uniswapRAIUSDCMedianizer.periodSize());
         }
         for (uint i = 0; i < uniswapMedianizerGranularity; i++) {
             (, observedPrice) = uniswapRAIUSDCMedianizer.converterFeedObservations(i);
-            assertEq(observedPrice, initUSDCUSDPrice);
+            assertEq(observedPrice, initUSDCUSDPrice * uniswapRAIUSDCMedianizer.periodSize());
         }
-
-        assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative(), initETHUSDPrice * 24);
-        assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative(), initUSDCUSDPrice * 24);
     }
     function test_simulate_denominator_token_positive_price_jump() public {
-        (uint uniswapListLength, uint converterListLength) = uniswapRAIWETHMedianizer.getObservationListLength();
-        assertEq(uniswapListLength, uniswapMedianizerGranularity);
-        assertEq(converterListLength, uniswapMedianizerGranularity);
-
-        (uniswapListLength, converterListLength) = uniswapRAIUSDCMedianizer.getObservationListLength();
-        assertEq(uniswapListLength, uniswapMedianizerGranularity);
-        assertEq(converterListLength, uniswapMedianizerGranularity);
-
-        simulateETHRAISamePrices();
-        simulateUSDCRAISamePrices();
+        simulateBothOraclesSamePrices();
 
         // Initial checks
-        assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative(), initETHUSDPrice * 24);
-        assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative(), initUSDCUSDPrice * 24);
+        assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative(), initETHUSDPrice * uniswapRAIWETHMedianizer.periodSize() * uniswapMedianizerGranularity);
+        assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative(), initUSDCUSDPrice * uniswapRAIWETHMedianizer.periodSize() * uniswapMedianizerGranularity);
 
         // Price jumps
-        converterETHPriceFeed.modifyParameters("medianPrice", initETHUSDPrice + 50 * 10 ** 18);
+        hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
+        uint totalWETHDeviation = 24 * 10 ** 18;
+        uint totalUSDCDeviation = 10 ** 18;
+
+        converterETHPriceFeed.modifyParameters("medianPrice", initETHUSDPrice + totalWETHDeviation);
         uniswapRAIWETHMedianizer.updateResult(address(alice));
         raiWETHPair.sync();
 
@@ -638,28 +664,31 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         uniswapRAIUSDCMedianizer.updateResult(address(alice));
         raiUSDCPair.sync();
 
-        uint upwardDeviation = uint(50 * 10 ** 18) / uniswapMedianizerGranularity;
-        assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative(), initETHUSDPrice * 23 + (initETHUSDPrice + 50 * 10 ** 18));
-        assertEq(uniswapRAIWETHMedianizer.converterComputeAmountOut(10**18), initETHUSDPrice + upwardDeviation);
+        assertEq(
+          uniswapRAIWETHMedianizer.converterPriceCumulative() / (24 * uniswapRAIWETHMedianizer.periodSize()), 251000000000000000000
+        );
 
-        upwardDeviation = uint(10 ** 18) / uniswapMedianizerGranularity;
-        assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative(), initUSDCUSDPrice * 23 + (initUSDCUSDPrice + 10 ** 18));
-        assertEq(uniswapRAIUSDCMedianizer.converterComputeAmountOut(10**18), initUSDCUSDPrice + upwardDeviation);
+        uint granularityAdjustedDeviation = uint(totalWETHDeviation) / uniswapMedianizerGranularity;
+        assertEq(
+          uniswapRAIWETHMedianizer.converterPriceCumulative(), initETHUSDPrice * 23 * uniswapRAIWETHMedianizer.periodSize() + (initETHUSDPrice + totalWETHDeviation) * uniswapRAIWETHMedianizer.periodSize()
+        );
+        assertEq(uniswapRAIWETHMedianizer.converterComputeAmountOut(uniswapRAIWETHMedianizer.periodSize() * uniswapMedianizerGranularity, 10**18), initETHUSDPrice + granularityAdjustedDeviation);
+
+        granularityAdjustedDeviation = uint(totalUSDCDeviation) / uniswapMedianizerGranularity;
+        assertEq(
+          uniswapRAIUSDCMedianizer.converterPriceCumulative(), initUSDCUSDPrice * 23 * uniswapRAIWETHMedianizer.periodSize() + (initUSDCUSDPrice + totalUSDCDeviation) * uniswapRAIWETHMedianizer.periodSize()
+        );
+        assertEq(uniswapRAIUSDCMedianizer.converterComputeAmountOut(uniswapRAIWETHMedianizer.periodSize() * uniswapMedianizerGranularity, 10**18), initUSDCUSDPrice + granularityAdjustedDeviation);
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 4242000000004242000);
+        assertEq(medianPrice, 4258968000004258968);
 
         // RAI/USDC
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         assertTrue(isValid);
         assertEq(medianPrice, 4418749999999999996);
-
-        assertTrue(
-          rai.balanceOf(address(alice)) > baseCallerReward * uint(uniswapMedianizerGranularity) * 2 &&
-          rai.balanceOf(address(alice)) < baseCallerReward * uint(uniswapMedianizerGranularity) * 3
-        );
     }
     function test_get_result_after_passing_granularity() public {
         simulateETHRAISamePrices();
@@ -686,34 +715,32 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         assertTrue(median > 0);
     }
     function test_thin_liquidity_one_round_simulate_prices() public {
-        simulateWETHRAIPrices();
-        simulateUSDCRAIPrices();
+        simulatedBothOraclesPrices();
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 1453372414506689500);
+        assertEq(medianPrice, 1453547942576074365);
 
         // RAI/USDC
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 664202706237287046);
+        assertEq(medianPrice, 664282923955431645);
     }
     function test_thin_liquidity_multi_round_simulate_prices() public {
         for (uint i = 0; i < 5; i++) {
-          simulateWETHRAIPrices();
-          simulateUSDCRAIPrices();
+          simulatedBothOraclesPrices();
         }
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 1268677583285189750);
+        assertEq(medianPrice, 1453547942576074365);
 
         // // RAI/USDC
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 2233037980220181266);
+        assertEq(medianPrice, 664282923955431645);
     }
     function test_deep_liquidity_one_round_simulate_prices() public {
         // Add WETH/RAI liquidity
@@ -722,17 +749,16 @@ contract UniswapPriceFeedMedianizerTest is DSTest {
         addPairLiquidityRouter(address(rai), address(usdc), initRAIUSDCPairLiquidity * 10000, initUSDCRAIPairLiquidity * 10000);
 
         // Simulate market making
-        simulateWETHRAIPrices();
-        simulateUSDCRAIPrices();
+        simulatedBothOraclesPrices();
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 4240807885365798250);
+        assertEq(medianPrice, 4241320060231180592);
 
         // RAI/USDC
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 4210768085959207427);
+        assertEq(medianPrice, 4211276632829492353);
     }
 }
