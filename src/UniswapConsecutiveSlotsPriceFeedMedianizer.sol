@@ -77,15 +77,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
     // --- General Vars ---
     // Symbol - you want to change this every deployment
     bytes32 public symbol = "raiusd";
-    /**
-        The number of observations stored for the pair, i.e. how many price observations are stored for the window.
-        as granularity increases from 1, more frequent updates are needed, but moving averages become more precise.
-        averages are computed over intervals with sizes in the range:
-          [windowSize - (windowSize / granularity) * 2, windowSize]
-        e.g. if the window size is 24 hours, and the granularity is 24, the oracle will return the average price for
-          the period:
-          [now - [22 hours, 24 hours], now]
-    **/
+
     uint8   public granularity;
     // When the price feed was last updated
     uint256 public lastUpdateTime;
@@ -133,10 +125,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
       uint256 perSecondCallerRewardIncrease_,
       uint8   granularity_
     ) public {
-        require(converterFeed_ != address(0), "UniswapConsecutiveSlotsPriceFeedMedianizer/null-converter-feed");
         require(uniswapFactory_ != address(0), "UniswapConsecutiveSlotsPriceFeedMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapConsecutiveSlotsPriceFeedMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapConsecutiveSlotsPriceFeedMedianizer/null-window-size');
+        require(defaultAmountIn_ > 0, 'UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in');
         require(converterFeedScalingFactor_ > 0, 'UniswapConsecutiveSlotsPriceFeedMedianizer/null-feed-scaling-factor');
         require(
             (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
@@ -254,6 +246,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
         else if (parameter == "maxRewardIncreaseDelay") {
           require(data > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-max-increase-delay");
           maxRewardIncreaseDelay = data;
+        }
+        else if (parameter == "defaultAmountIn") {
+          require(data > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in");
+          defaultAmountIn = data;
         }
         else revert("UniswapConsecutiveSlotsPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
@@ -482,13 +478,13 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
     * @notice Fetch the latest medianPrice or revert if is is null
     **/
     function read() external view returns (uint256) {
-        require(both(medianPrice > 0, updates >= granularity), "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-price-feed");
+        require(both(medianPrice > 0, updates > granularity), "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-price-feed");
         return medianPrice;
     }
     /**
     * @notice Fetch the latest medianPrice and whether it is null or not
     **/
     function getResultWithValidity() external view returns (uint256, bool) {
-        return (medianPrice, both(medianPrice > 0, updates >= granularity));
+        return (medianPrice, both(medianPrice > 0, updates > granularity));
     }
 }

@@ -133,10 +133,10 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is UniswapV2Library, Un
       uint256 perSecondCallerRewardIncrease_,
       uint8   granularity_
     ) public {
-        require(converterFeed_ != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-converter-feed");
         require(uniswapFactory_ != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapConverterBasicAveragePriceFeedMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapConverterBasicAveragePriceFeedMedianizer/null-window-size');
+        require(defaultAmountIn_ > 0, 'UniswapConverterBasicAveragePriceFeedMedianizer/invalid-default-amount-in');
         require(converterFeedScalingFactor_ > 0, 'UniswapConverterBasicAveragePriceFeedMedianizer/null-feed-scaling-factor');
         require(
             (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
@@ -257,6 +257,10 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is UniswapV2Library, Un
         else if (parameter == "maxRewardIncreaseDelay") {
           require(data > 0, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-max-increase-delay");
           maxRewardIncreaseDelay = data;
+        }
+        else if (parameter == "defaultAmountIn") {
+          require(data > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in");
+          defaultAmountIn = data;
         }
         else revert("UniswapConverterBasicAveragePriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);

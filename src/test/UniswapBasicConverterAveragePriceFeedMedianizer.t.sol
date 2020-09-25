@@ -279,7 +279,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
           hevm.warp(now + uniswapRAIUSDCMedianizer.periodSize());
         }
     }
-    function simulateBothOraclesPrices() internal {
+    function simulateBothOraclePrices() internal {
         uint256 i;
 
         for (i = 0; i < uint(uniswapMedianizerGranularity) / 2; i++) {
@@ -301,7 +301,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
           hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
         }
     }
-    function simulateBothOraclesPricesErraticDelays() internal {
+    function simulateBothOraclePricesErraticDelays() internal {
         uint chosenDelay;
         uint256 i;
 
@@ -780,7 +780,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
     }
     function test_thin_liquidity_multi_round_simulate_prices() public {
         for (uint i = 0; i < 5; i++) {
-          simulateBothOraclesPrices();
+          simulateBothOraclePrices();
         }
 
         // RAI/WETH
@@ -795,7 +795,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
     }
     function test_thin_liquidity_multi_round_simulate_prices_erratic_delays() public {
         for (uint i = 0; i < 5; i++) {
-          simulateBothOraclesPricesErraticDelays();
+          simulateBothOraclePricesErraticDelays();
         }
 
         // RAI/WETH
@@ -815,7 +815,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         addPairLiquidityRouter(address(rai), address(usdc), initRAIUSDCPairLiquidity * 10000, initUSDCRAIPairLiquidity * 10000);
 
         // Simulate market making
-        simulateBothOraclesPrices();
+        simulateBothOraclePrices();
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
@@ -834,7 +834,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         addPairLiquidityRouter(address(rai), address(usdc), initRAIUSDCPairLiquidity * 10000, initUSDCRAIPairLiquidity * 10000);
 
         // Simulate market making
-        simulateBothOraclesPricesErraticDelays();
+        simulateBothOraclePricesErraticDelays();
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
