@@ -136,7 +136,6 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
         );
         require(maxUpdateCallerReward_ > baseUpdateCallerReward_, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-max-reward");
         require(perSecondCallerRewardIncrease_ >= RAY, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-reward-increase");
-        require(converterFeed_ != address(0), "UniswapConsecutiveSlotsPriceFeedMedianizer/null-converter");
         if (address(treasury_) != address(0)) {
           require(StabilityFeeTreasuryLike(treasury_).systemCoin() != address(0), "UniswapConsecutiveSlotsPriceFeedMedianizer/treasury-coin-not-set");
         }

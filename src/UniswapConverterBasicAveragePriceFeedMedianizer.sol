@@ -144,7 +144,6 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is UniswapV2Library, Un
         );
         require(maxUpdateCallerReward_ > baseUpdateCallerReward_, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-max-reward");
         require(perSecondCallerRewardIncrease_ >= RAY, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-reward-increase");
-        require(converterFeed_ != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-converter");
         if (address(treasury_) != address(0)) {
           require(StabilityFeeTreasuryLike(treasury_).systemCoin() != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/treasury-coin-not-set");
         }
