@@ -71,6 +71,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
     uint256 initRAIUSDCPairLiquidity = 1 ether;
 
     uint8   uniswapMedianizerGranularity            = 24;           // 1 hour
+    uint256 maxWindowSize                           = 72 hours;
     uint256 converterScalingFactor                  = 1 ether;
     uint256 uniswapMedianizerWindowSize             = 86400;        // 24 hours
     uint256 uniswapETHRAIMedianizerDefaultAmountIn  = 1 ether;
@@ -128,6 +129,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
             baseCallerReward,
             maxCallerReward,
             perSecondCallerRewardIncrease,
+            maxWindowSize,
             uniswapMedianizerGranularity
         );
         uniswapRAIUSDCMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
@@ -140,6 +142,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
             baseCallerReward,
             maxCallerReward,
             perSecondCallerRewardIncrease,
+            maxWindowSize,
             uniswapMedianizerGranularity
         );
 
@@ -342,6 +345,9 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(uniswapRAIWETHMedianizer.windowSize(), uniswapMedianizerWindowSize);
         assertEq(uniswapRAIUSDCMedianizer.windowSize(), uniswapMedianizerWindowSize);
 
+        assertEq(uniswapRAIWETHMedianizer.maxWindowSize(), maxWindowSize);
+        assertEq(uniswapRAIUSDCMedianizer.maxWindowSize(), maxWindowSize);
+
         assertEq(uniswapRAIWETHMedianizer.updates(), 0);
         assertEq(uniswapRAIUSDCMedianizer.updates(), 0);
 
@@ -400,6 +406,21 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(raiWETHPair.totalSupply(), 38384392946547949802);
         assertEq(raiUSDCPair.totalSupply(), 2059611613872);
     }
+    function testFail_max_window_size_smaller_than_normal_window() public {
+        uniswapRAIWETHMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
+            address(converterETHPriceFeed),
+            address(uniswapFactory),
+            address(treasury),
+            uniswapETHRAIMedianizerDefaultAmountIn,
+            uniswapMedianizerWindowSize,
+            converterScalingFactor,
+            baseCallerReward,
+            maxCallerReward,
+            perSecondCallerRewardIncrease,
+            uniswapMedianizerWindowSize - 1,
+            1
+        );
+    }
     function testFail_small_granularity() public {
         uniswapRAIWETHMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
             address(converterETHPriceFeed),
@@ -411,6 +432,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
             baseCallerReward,
             maxCallerReward,
             perSecondCallerRewardIncrease,
+            maxWindowSize,
             1
         );
     }
@@ -425,6 +447,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
             baseCallerReward,
             0,
             perSecondCallerRewardIncrease,
+            maxWindowSize,
             uniswapMedianizerGranularity
         );
     }
@@ -439,6 +462,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
             baseCallerReward,
             maxCallerReward,
             RAY - 1,
+            maxWindowSize,
             uniswapMedianizerGranularity
         );
     }
@@ -453,6 +477,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
             baseCallerReward,
             maxCallerReward,
             perSecondCallerRewardIncrease,
+            maxWindowSize,
             23
         );
     }
@@ -644,6 +669,21 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(uniTimestamp, now);
         assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
         assertEq(price1Cumulative, 79270578062783154942013374);
+    }
+    function test_get_result_when_time_elapsed_above_max_window() public {
+        uniswapRAIUSDCMedianizer.modifyParameters("maxWindowSize", 25 hours);
+        uniswapRAIWETHMedianizer.modifyParameters("maxWindowSize", 25 hours);
+
+        simulateBothOraclesSamePricesErraticDelays();
+
+        (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
+        assertTrue(!isValid);
+        assertEq(medianPrice, 4242000000004242000);
+
+        // RAI/USDC
+        (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
+        assertTrue(!isValid);
+        assertEq(medianPrice, 4241999999999999999);
     }
     function test_simulate_same_prices() public {
         simulateBothOraclesSamePrices();

@@ -83,9 +83,14 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
     uint256 public lastUpdateTime;
     // Total number of updates
     uint256 public updates;
-    // The desired amount of time over which the moving average should be computed, e.g. 24 hours
+    /**
+      The ideal amount of time over which the moving average should be computed, e.g. 24 hours.
+      In practice it can and most probably will be different than the actual window over which the contract medianizes.
+    **/
     uint256 public windowSize;
-    // This is redundant with granularity and windowSize, but stored for gas savings & informational purposes.
+    // Maximum window size used to determine if the median is 'valid' (close to the real one) or not
+    uint256 public maxWindowSize;
+    // Stored for gas savings. Equals windowSize / granularity
     uint256 public periodSize;
     // This is the denominator for computing
     uint256 public converterFeedScalingFactor;
@@ -123,11 +128,13 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
       uint256 baseUpdateCallerReward_,
       uint256 maxUpdateCallerReward_,
       uint256 perSecondCallerRewardIncrease_,
+      uint256 maxWindowSize_,
       uint8   granularity_
     ) public {
         require(uniswapFactory_ != address(0), "UniswapConsecutiveSlotsPriceFeedMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapConsecutiveSlotsPriceFeedMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapConsecutiveSlotsPriceFeedMedianizer/null-window-size');
+        require(maxWindowSize_ > windowSize_, 'UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-max-window-size');
         require(defaultAmountIn_ > 0, 'UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in');
         require(converterFeedScalingFactor_ > 0, 'UniswapConsecutiveSlotsPriceFeedMedianizer/null-feed-scaling-factor');
         require(
@@ -145,6 +152,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
         uniswapFactory                 = IUniswapV2Factory(uniswapFactory_);
         defaultAmountIn                = defaultAmountIn_;
         windowSize                     = windowSize_;
+        maxWindowSize                  = maxWindowSize_;
         converterFeedScalingFactor     = converterFeedScalingFactor_;
         baseUpdateCallerReward         = baseUpdateCallerReward_;
         maxUpdateCallerReward          = maxUpdateCallerReward_;
@@ -156,6 +164,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
         emit AddAuthorization(msg.sender);
         emit ModifyParameters(bytes32("treasury"), treasury_);
         emit ModifyParameters(bytes32("converterFeed"), converterFeed_);
+        emit ModifyParameters(bytes32("maxWindowSize"), maxWindowSize_);
         emit ModifyParameters(bytes32("baseUpdateCallerReward"), baseUpdateCallerReward);
         emit ModifyParameters(bytes32("maxUpdateCallerReward"), maxUpdateCallerReward);
         emit ModifyParameters(bytes32("perSecondCallerRewardIncrease"), perSecondCallerRewardIncrease);
@@ -250,6 +259,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
           require(data > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in");
           defaultAmountIn = data;
         }
+        else if (parameter == "maxWindowSize") {
+          require(data > windowSize, 'UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-max-window-size');
+          maxWindowSize = data;
+        }
         else revert("UniswapConsecutiveSlotsPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
@@ -267,17 +280,20 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
     function getFirstObservationsInWindow()
       private view returns (UniswapObservation storage firstUniswapObservation, ConverterFeedObservation storage firstConverterFeedObservation) {
         uint256 earliestObservationIndex = earliestObservationIndex();
-        firstUniswapObservation       = uniswapObservations[earliestObservationIndex];
-        firstConverterFeedObservation = converterFeedObservations[earliestObservationIndex];
+        firstUniswapObservation          = uniswapObservations[earliestObservationIndex];
+        firstConverterFeedObservation    = converterFeedObservations[earliestObservationIndex];
     }
     /**
       @notice It returns the time passed since the first observation in the window
     **/
     function timeElapsedSinceFirstObservation() public view returns (uint256) {
-        (
-          UniswapObservation storage firstUniswapObservation,
-        ) = getFirstObservationsInWindow();
-        return subtract(now, firstUniswapObservation.timestamp);
+        if (updates > 1) {
+          (
+            UniswapObservation storage firstUniswapObservation,
+          ) = getFirstObservationsInWindow();
+          return subtract(now, firstUniswapObservation.timestamp);
+        }
+        return 0;
     }
     /**
     * @notice Calculate the median price using the latest observations and the latest Uniswap pair prices
@@ -290,21 +306,21 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
             UniswapObservation storage firstUniswapObservation,
           ) = getFirstObservationsInWindow();
 
-          uint timeElapsedSinceFirstObservation = subtract(now, firstUniswapObservation.timestamp);
-          (address token0,)                     = sortTokens(targetToken, denominationToken);
+          uint timeSinceFirst = subtract(now, firstUniswapObservation.timestamp);
+          (address token0,)   = sortTokens(targetToken, denominationToken);
           uint256 uniswapAmountOut;
 
           if (token0 == targetToken) {
               uniswapAmountOut = uniswapComputeAmountOut(
-                firstUniswapObservation.price0Cumulative, price0Cumulative, timeElapsedSinceFirstObservation, defaultAmountIn
+                firstUniswapObservation.price0Cumulative, price0Cumulative, timeSinceFirst, defaultAmountIn
               );
           } else {
               uniswapAmountOut = uniswapComputeAmountOut(
-                firstUniswapObservation.price1Cumulative, price1Cumulative, timeElapsedSinceFirstObservation, defaultAmountIn
+                firstUniswapObservation.price1Cumulative, price1Cumulative, timeSinceFirst, defaultAmountIn
               );
           }
 
-          return converterComputeAmountOut(timeElapsedSinceFirstObservation, uniswapAmountOut);
+          return converterComputeAmountOut(timeSinceFirst, uniswapAmountOut);
         }
 
         return medianPrice;
@@ -486,13 +502,13 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
     * @notice Fetch the latest medianPrice or revert if is is null
     **/
     function read() external view returns (uint256) {
-        require(both(medianPrice > 0, updates > granularity), "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-price-feed");
+        require(both(both(medianPrice > 0, updates > granularity), timeElapsedSinceFirstObservation() <= maxWindowSize), "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-price-feed");
         return medianPrice;
     }
     /**
     * @notice Fetch the latest medianPrice and whether it is null or not
     **/
     function getResultWithValidity() external view returns (uint256, bool) {
-        return (medianPrice, both(medianPrice > 0, updates > granularity));
+        return (medianPrice, both(both(medianPrice > 0, updates > granularity), timeElapsedSinceFirstObservation() <= maxWindowSize));
     }
 }
