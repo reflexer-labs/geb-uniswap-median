@@ -271,20 +271,29 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
         firstConverterFeedObservation = converterFeedObservations[earliestObservationIndex];
     }
     /**
+      @notice It returns the time passed since the first observation in the window
+    **/
+    function timeElapsedSinceFirstObservation() public view returns (uint256) {
+        (
+          UniswapObservation storage firstUniswapObservation,
+        ) = getFirstObservationsInWindow();
+        return subtract(now, firstUniswapObservation.timestamp);
+    }
+    /**
     * @notice Calculate the median price using the latest observations and the latest Uniswap pair prices
     * @param price0Cumulative Cumulative price for the first token in the pair
     * @param price1Cumulative Cumulative price for the second token in the pair
     **/
     function getMedianPrice(uint256 price0Cumulative, uint256 price1Cumulative) private view returns (uint256) {
-        (
-          UniswapObservation storage firstUniswapObservation,
-        ) = getFirstObservationsInWindow();
+        if (updates > 1) {
+          (
+            UniswapObservation storage firstUniswapObservation,
+          ) = getFirstObservationsInWindow();
 
-        uint timeElapsedSinceFirstObservation = subtract(now, firstUniswapObservation.timestamp);
-        // We can only fetch a brand new median price if there's been enough price data gathered
-        if (both(timeElapsedSinceFirstObservation <= windowSize, timeElapsedSinceFirstObservation >= windowSize - periodSize * 2)) {
-          (address token0,) = sortTokens(targetToken, denominationToken);
+          uint timeElapsedSinceFirstObservation = subtract(now, firstUniswapObservation.timestamp);
+          (address token0,)                     = sortTokens(targetToken, denominationToken);
           uint256 uniswapAmountOut;
+
           if (token0 == targetToken) {
               uniswapAmountOut = uniswapComputeAmountOut(
                 firstUniswapObservation.price0Cumulative, price0Cumulative, timeElapsedSinceFirstObservation, defaultAmountIn

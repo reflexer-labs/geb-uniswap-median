@@ -687,12 +687,12 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 4772250000004772250);
+        assertEq(medianPrice, 4242000000004242000);
 
         // RAI/USDC
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 4772249999999999998);
+        assertEq(medianPrice, 4241999999999999999);
 
         uint observedPrice;
         uint chosenDelay;
@@ -706,6 +706,24 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
             (, observedPrice) = uniswapRAIUSDCMedianizer.converterFeedObservations(i);
             assertEq(observedPrice, initUSDCUSDPrice * chosenDelay);
         }
+    }
+    function test_simulate_same_prices_erratic_delays_first_update_huge_delay() public {
+        hevm.warp(now + 7 days);
+
+        simulateBothOraclesSamePricesErraticDelays();
+
+        // RAI/WETH
+        (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
+        assertTrue(isValid);
+        assertEq(medianPrice, 4242000000004242000);
+
+        // RAI/USDC
+        (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
+        assertTrue(isValid);
+        assertEq(medianPrice, 4241999999999999999);
+
+        assertEq(uniswapRAIUSDCMedianizer.timeElapsedSinceFirstObservation(), 48 hours);
+        assertEq(uniswapRAIWETHMedianizer.timeElapsedSinceFirstObservation(), 48 hours);
     }
     function test_simulate_same_prices_erratic_then_normal_delays() public {
         simulateBothOraclesSamePricesErraticDelays();
@@ -841,12 +859,12 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 1616311914215685000);
+        assertEq(medianPrice, 1247718382333789500);
 
         // // RAI/USDC
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 114796728777971632);
+        assertEq(medianPrice, 2214949576302264945);
     }
     function test_thin_liquidity_multi_round_simulate_prices_erratic_then_normal_delays() public {
         for (uint i = 0; i < 5; i++) {
@@ -917,12 +935,12 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 4241887539271420000);
+        assertEq(medianPrice, 4241829887122276000);
 
         // RAI/USDC
         (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 4238689349801038123);
+        assertEq(medianPrice, 4237481662786958203);
     }
     function test_deep_liquidity_one_round_simulate_prices_erratic_then_normal_delays() public {
         // Add WETH/RAI liquidity
