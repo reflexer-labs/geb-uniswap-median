@@ -329,10 +329,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
     * @notice Returns the index of the earliest observation in the window
     **/
     function earliestObservationIndex() public view returns (uint256) {
-        if (uniswapObservations.length <= granularity) {
+        if (updates <= granularity) {
           return 0;
         }
-        return subtract(subtract(uniswapObservations.length, 1), uint(granularity));
+        return subtract(updates, uint(granularity));
     }
     /**
     * @notice Get the observation list length
@@ -486,8 +486,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
         // Add Uniswap observation
         uniswapObservations.push(UniswapObservation(now, uniswapPrice0Cumulative, uniswapPrice1Cumulative));
 
+        // Add the new update
         converterPriceCumulative = addition(converterPriceCumulative, newTimeAdjustedPrice);
 
+        // Subtract the earliest update
         if (updates >= granularity) {
           (
             ,

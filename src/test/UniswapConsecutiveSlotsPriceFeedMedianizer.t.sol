@@ -701,6 +701,23 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
           ), initUSDCUSDPrice
         );
 
+        // Check interval
+        assertEq(uniswapRAIWETHMedianizer.earliestObservationIndex(), 24);
+        assertEq(uniswapRAIUSDCMedianizer.earliestObservationIndex(), 24);
+
+        (uint listLength, ) = uniswapRAIWETHMedianizer.getObservationListLength();
+        assertEq(listLength, 48);
+        (listLength, ) = uniswapRAIUSDCMedianizer.getObservationListLength();
+        assertEq(listLength, 48);
+
+        // Check time elapsed
+        assertEq(uniswapRAIWETHMedianizer.timeElapsedSinceFirstObservation(), 82800);
+        assertEq(uniswapRAIUSDCMedianizer.timeElapsedSinceFirstObservation(), 82800);
+
+        // Check cumulative converter price
+        assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative() / uniswapMedianizerGranularity / (uniswapMedianizerWindowSize / uint(uniswapMedianizerGranularity)), initETHUSDPrice);
+        assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative() / uniswapMedianizerGranularity / (uniswapMedianizerWindowSize / uint(uniswapMedianizerGranularity)), initUSDCUSDPrice);
+
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
@@ -762,15 +779,15 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertTrue(isValid);
         assertEq(medianPrice, 4241999999999999999);
 
-        assertEq(uniswapRAIUSDCMedianizer.timeElapsedSinceFirstObservation(), 48 hours);
-        assertEq(uniswapRAIWETHMedianizer.timeElapsedSinceFirstObservation(), 48 hours);
+        assertEq(uniswapRAIUSDCMedianizer.timeElapsedSinceFirstObservation(), 45 hours);
+        assertEq(uniswapRAIWETHMedianizer.timeElapsedSinceFirstObservation(), 45 hours);
     }
     function test_simulate_same_prices_erratic_then_normal_delays() public {
         simulateBothOraclesSamePricesErraticDelays();
         simulateBothOraclesSamePrices();
 
-        assertEq(uniswapRAIWETHMedianizer.earliestObservationIndex(), 71);
-        assertEq(uniswapRAIUSDCMedianizer.earliestObservationIndex(), 71);
+        assertEq(uniswapRAIWETHMedianizer.earliestObservationIndex(), 72);
+        assertEq(uniswapRAIUSDCMedianizer.earliestObservationIndex(), 72);
 
         (uint256 uniObservationsListLength, uint256 converterObservationsListLength) = uniswapRAIWETHMedianizer.getObservationListLength();
         assertEq(uniObservationsListLength, 96);
@@ -782,6 +799,9 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
 
         assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative(), initUSDCUSDPrice * uint(uniswapMedianizerGranularity) * uniswapRAIUSDCMedianizer.periodSize());
         assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative(), initETHUSDPrice * uint(uniswapMedianizerGranularity) * uniswapRAIUSDCMedianizer.periodSize());
+
+        assertEq(uniswapRAIUSDCMedianizer.timeElapsedSinceFirstObservation(), 23 hours);
+        assertEq(uniswapRAIWETHMedianizer.timeElapsedSinceFirstObservation(), 23 hours);
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
