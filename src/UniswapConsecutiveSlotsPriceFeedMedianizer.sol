@@ -358,7 +358,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
             adjustedTime = (adjustedTime > maxRewardIncreaseDelay) ? maxRewardIncreaseDelay : adjustedTime;
             baseReward = rmultiply(rpower(perSecondCallerRewardIncrease, adjustedTime, RAY), baseReward);
         }
-        uint256 maxReward = minimum(maxUpdateCallerReward, treasuryAllowance());
+        uint256 maxReward = minimum(maxUpdateCallerReward, treasuryAllowance() / RAY);
         if (baseReward > maxReward) {
             baseReward = maxReward;
         }
