@@ -374,6 +374,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is UniswapV2Library, Un
         uint256 timeElapsed,
         uint256 amountIn
     ) public pure returns (uint256 amountOut) {
+        require(priceCumulativeEnd >= priceCumulativeStart, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-end-cumulative");
         require(timeElapsed > 0, "UniswapConverterBasicAveragePriceFeedMedianizer/null-time-elapsed");
         // Overflow is desired
         uq112x112 memory priceAverage = uq112x112(
