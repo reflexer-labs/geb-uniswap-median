@@ -63,7 +63,10 @@ contract UniswapV2Pair is UQ112x112, Math, SafeMath {
 
     constructor() public {
         factory = msg.sender;
-        uint chainId = 1;
+        uint chainId;
+        assembly {
+            chainId := chainid()
+        }
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'),
