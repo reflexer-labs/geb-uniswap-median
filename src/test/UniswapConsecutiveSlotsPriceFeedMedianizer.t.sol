@@ -1,4 +1,4 @@
-pragma solidity ^0.6.7;
+pragma solidity 0.6.7;
 
 import "ds-test/test.sol";
 import "ds-weth/weth9.sol";
@@ -19,7 +19,7 @@ abstract contract Hevm {
 
 // --- Token Contracts ---
 contract USDC is DSToken {
-    constructor(bytes32 symbol) public DSToken(symbol) {
+    constructor(string memory symbol) public DSToken(symbol, symbol) {
         decimals = 6;
         mint(100 ether);
     }
@@ -186,7 +186,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         // Create Tokens
         weth = new WETH9_();
 
-        rai = new DSToken("RAI");
+        rai = new DSToken("RAI", "RAI");
         rai.mint(initTokenAmount);
 
         usdc = new USDC("USDC");
@@ -510,8 +510,8 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initETHUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
-        assertEq(price1Cumulative, 317082312251449702080310206411507700);
+        assertEq(price0Cumulative, 317082312251449702080310206411507700);
+        assertEq(price1Cumulative, 1101312847350787220573278491526876720617);
         assertEq(rai.balanceOf(alice), 0);
         assertEq(uniswapRAIWETHMedianizer.updates(), 1);
 
@@ -649,8 +649,8 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initETHUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
-        assertEq(price1Cumulative, 317082312251449702080310206411507700);
+        assertEq(price0Cumulative, 317082312251449702080310206411507700);
+        assertEq(price1Cumulative, 1101312847350787220573278491526876720617);
 
         // RAI/USDC
         uniswapRAIUSDCMedianizer.updateResult(address(this));

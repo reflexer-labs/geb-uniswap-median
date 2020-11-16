@@ -1,4 +1,4 @@
-pragma solidity ^0.6.7;
+pragma solidity 0.6.7;
 
 contract MockMedianizer {
     uint128 private medianPrice;
