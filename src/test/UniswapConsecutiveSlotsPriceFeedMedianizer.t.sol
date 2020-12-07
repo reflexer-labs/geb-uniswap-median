@@ -1025,4 +1025,111 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertTrue(isValid);
         assertEq(medianPrice, 4234771455067826728);
     }
+    function test_two_hour_twap() public {
+        // Setup
+        UniswapConsecutiveSlotsPriceFeedMedianizer twoHourMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
+            address(0x1),
+            address(uniswapFactory),
+            address(treasury),
+            uniswapETHRAIMedianizerDefaultAmountIn,
+            2 hours,
+            converterScalingFactor,
+            baseCallerReward,
+            maxCallerReward,
+            perSecondCallerRewardIncrease,
+            4 hours,
+            2
+        );
+
+        // Set max reward increase delay
+        twoHourMedianizer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
+
+        // Set treasury allowance
+        treasury.setTotalAllowance(address(twoHourMedianizer), uint(-1));
+        treasury.setPerBlockAllowance(address(twoHourMedianizer), uint(-1));
+
+        // Set converter addresses
+        twoHourMedianizer.modifyParameters("converterFeed", address(converterETHPriceFeed));
+
+        // Set target and denomination tokens
+        twoHourMedianizer.modifyParameters("targetToken", address(rai));
+        twoHourMedianizer.modifyParameters("denominationToken", address(weth));
+
+        // Add extra liquidity
+        addPairLiquidityRouter(address(rai), address(weth), initRAIETHPairLiquidity, initETHRAIPairLiquidity);
+
+        // Update median
+        hevm.warp(now + 10);
+        twoHourMedianizer.updateResult(address(this));
+        hevm.warp(now + 1 hours);
+        twoHourMedianizer.updateResult(address(this));
+        hevm.warp(now + 1 hours);
+        twoHourMedianizer.updateResult(address(this));
+
+        // Checks
+        (uint256 medianPrice, bool isValid) = twoHourMedianizer.getResultWithValidity();
+        assertEq(medianPrice, 4242000000004242000);
+        assertTrue(isValid);
+
+        assertEq(twoHourMedianizer.updates(), 3);
+        assertEq(twoHourMedianizer.timeElapsedSinceFirstObservation(), 1 hours);
+    }
+    function test_two_hour_twap_massive_update_delay() public {
+        // Setup
+        UniswapConsecutiveSlotsPriceFeedMedianizer twoHourMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
+            address(0x1),
+            address(uniswapFactory),
+            address(treasury),
+            uniswapETHRAIMedianizerDefaultAmountIn,
+            2 hours,
+            converterScalingFactor,
+            baseCallerReward,
+            maxCallerReward,
+            perSecondCallerRewardIncrease,
+            4 hours,
+            2
+        );
+
+        // Set max reward increase delay
+        twoHourMedianizer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
+
+        // Set treasury allowance
+        treasury.setTotalAllowance(address(twoHourMedianizer), uint(-1));
+        treasury.setPerBlockAllowance(address(twoHourMedianizer), uint(-1));
+
+        // Set converter addresses
+        twoHourMedianizer.modifyParameters("converterFeed", address(converterETHPriceFeed));
+
+        // Set target and denomination tokens
+        twoHourMedianizer.modifyParameters("targetToken", address(rai));
+        twoHourMedianizer.modifyParameters("denominationToken", address(weth));
+
+        // Add extra liquidity
+        addPairLiquidityRouter(address(rai), address(weth), initRAIETHPairLiquidity, initETHRAIPairLiquidity);
+
+        // Update median
+        hevm.warp(now + 10);
+        twoHourMedianizer.updateResult(address(this));
+        hevm.warp(now + 1 hours);
+        twoHourMedianizer.updateResult(address(this));
+        hevm.warp(now + 3650 days);
+        twoHourMedianizer.updateResult(address(this));
+
+        // Checks
+        (uint256 medianPrice, bool isValid) = twoHourMedianizer.getResultWithValidity();
+        assertEq(medianPrice, 4242000000004242000);
+        assertTrue(!isValid);
+
+        assertEq(twoHourMedianizer.updates(), 3);
+        assertEq(twoHourMedianizer.timeElapsedSinceFirstObservation(), 3650 days);
+
+        // Another update
+        hevm.warp(now + 1 hours);
+        twoHourMedianizer.updateResult(address(this));
+
+        // Checks
+        (medianPrice, isValid) = twoHourMedianizer.getResultWithValidity();
+        assertEq(medianPrice, 4242000000004242000);
+        assertTrue(isValid);
+    }
 }
