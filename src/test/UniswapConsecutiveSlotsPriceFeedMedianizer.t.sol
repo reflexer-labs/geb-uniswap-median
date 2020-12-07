@@ -1061,15 +1061,22 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         // Update median
         hevm.warp(now + 10);
         twoHourMedianizer.updateResult(address(this));
+        (, bool isValid) = twoHourMedianizer.getResultWithValidity();
+        assertTrue(!isValid);
+
         hevm.warp(now + 1 hours);
         twoHourMedianizer.updateResult(address(this));
+        (, isValid) = twoHourMedianizer.getResultWithValidity();
+        assertTrue(!isValid);
+
         hevm.warp(now + 1 hours);
         twoHourMedianizer.updateResult(address(this));
+        (, isValid) = twoHourMedianizer.getResultWithValidity();
+        assertTrue(isValid);
 
         // Checks
-        (uint256 medianPrice, bool isValid) = twoHourMedianizer.getResultWithValidity();
+        (uint256 medianPrice,) = twoHourMedianizer.getResultWithValidity();
         assertEq(medianPrice, 4242000000004242000);
-        assertTrue(isValid);
 
         assertEq(twoHourMedianizer.updates(), 3);
         assertEq(twoHourMedianizer.timeElapsedSinceFirstObservation(), 1 hours);
