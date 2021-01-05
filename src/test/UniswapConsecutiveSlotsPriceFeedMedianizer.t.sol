@@ -670,6 +670,22 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
         assertEq(price1Cumulative, 79270578062783154942013374);
     }
+    function test_wait_more_than_maxUpdateCallerReward_since_last_update() public {
+        hevm.warp(now + 3599);
+        uniswapRAIWETHMedianizer.updateResult(address(0x1234));
+
+        assertEq(rai.balanceOf(address(0x1234)), 0);
+
+        hevm.warp(now + 3599 + maxRewardDelay + 1);
+        uniswapRAIWETHMedianizer.updateResult(address(0x1234));
+
+        assertEq(rai.balanceOf(address(0x1234)), baseCallerReward);
+
+        hevm.warp(now + 3599 + maxRewardDelay + 1);
+        uniswapRAIWETHMedianizer.updateResult(address(0x1234));
+
+        assertEq(rai.balanceOf(address(0x1234)), baseCallerReward + maxCallerReward);
+    }
     function test_get_result_when_time_elapsed_above_max_window() public {
         uniswapRAIUSDCMedianizer.modifyParameters("maxWindowSize", 25 hours);
         uniswapRAIWETHMedianizer.modifyParameters("maxWindowSize", 25 hours);
