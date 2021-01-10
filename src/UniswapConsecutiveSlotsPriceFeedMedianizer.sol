@@ -1,5 +1,7 @@
 pragma solidity 0.6.7;
 
+import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol"
+
 import './uni/interfaces/IUniswapV2Factory.sol';
 import './uni/interfaces/IUniswapV2Pair.sol';
 
@@ -11,7 +13,7 @@ abstract contract ConverterFeedLike {
     function updateResult(address) virtual external;
 }
 
-contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary {
+contract UniswapConsecutiveSlotsPriceFeedMedianizer is IncreasingTreasuryReimbursement, UniswapV2Library, UniswapV2OracleLibrary {
     // --- Observations ---
     struct UniswapObservation {
         uint timestamp;
@@ -83,7 +85,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
       uint256 perSecondCallerRewardIncrease_,
       uint256 maxWindowSize_,
       uint8   granularity_
-    ) public {
+    ) public IncreasingTreasuryReimbursement(treasury_, baseUpdateCallerReward_, maxUpdateCallerReward_, perSecondCallerRewardIncrease_) {
         require(uniswapFactory_ != address(0), "UniswapConsecutiveSlotsPriceFeedMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapConsecutiveSlotsPriceFeedMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapConsecutiveSlotsPriceFeedMedianizer/null-window-size');
@@ -94,11 +96,6 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
             (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
             'UniswapConsecutiveSlotsPriceFeedMedianizer/window-not-evenly-divisible'
         );
-        require(maxUpdateCallerReward_ > baseUpdateCallerReward_, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-max-reward");
-        require(perSecondCallerRewardIncrease_ >= RAY, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-reward-increase");
-        if (address(treasury_) != address(0)) {
-          require(StabilityFeeTreasuryLike(treasury_).systemCoin() != address(0), "UniswapConsecutiveSlotsPriceFeedMedianizer/treasury-coin-not-set");
-        }
 
         converterFeed               = ConverterFeedLike(converterFeed_);
         uniswapFactory              = IUniswapV2Factory(uniswapFactory_);
@@ -321,7 +318,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
         }
 
         // Get caller's reward
-        uint256 callerReward = getCallerReward();
+        uint256 callerReward = getCallerReward(lastUpdateTime, periodSize);
 
         // Get Uniswap cumulative prices
         (uint uniswapPrice0Cumulative, uint uniswapPrice1Cumulative,) = currentCumulativePrices(uniswapPair);
