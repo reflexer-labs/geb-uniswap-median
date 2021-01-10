@@ -10,39 +10,8 @@ abstract contract ConverterFeedLike {
     function getResultWithValidity() virtual external view returns (uint256,bool);
     function updateResult(address) virtual external;
 }
-abstract contract StabilityFeeTreasuryLike {
-    function getAllowance(address) virtual external view returns (uint, uint);
-    function systemCoin() virtual external view returns (address);
-    function pullFunds(address, address, uint) virtual external;
-}
 
 contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, UniswapV2OracleLibrary {
-    // --- Auth ---
-    mapping (address => uint) public authorizedAccounts;
-    /**
-     * @notice Add auth to an account
-     * @param account Account to add auth to
-     */
-    function addAuthorization(address account) external isAuthorized {
-        authorizedAccounts[account] = 1;
-        emit AddAuthorization(account);
-    }
-    /**
-     * @notice Remove auth from an account
-     * @param account Account to remove auth from
-     */
-    function removeAuthorization(address account) external isAuthorized {
-        authorizedAccounts[account] = 0;
-        emit RemoveAuthorization(account);
-    }
-    /**
-    * @notice Checks whether msg.sender can call an authed function
-    **/
-    modifier isAuthorized {
-        require(authorizedAccounts[msg.sender] == 1, "UniswapConsecutiveSlotsPriceFeedMedianizer/account-not-authorized");
-        _;
-    }
-
     // --- Observations ---
     struct UniswapObservation {
         uint timestamp;
@@ -96,27 +65,11 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
     uint256 public converterFeedScalingFactor;
     // The last computed median price
     uint256 private medianPrice;
-    // Starting reward for the feeReceiver
-    uint256 public baseUpdateCallerReward;          // [wad]
-    // Max possible reward for the feeReceiver
-    uint256 public maxUpdateCallerReward;           // [wad]
-    // Max delay taken into consideration when calculating the adjusted reward
-    uint256 public maxRewardIncreaseDelay;
-    // Rate applied to baseUpdateCallerReward every extra second passed beyond periodSize seconds since the last update call
-    uint256 public perSecondCallerRewardIncrease;   // [ray]
-    // SF treasury contract
-    StabilityFeeTreasuryLike  public treasury;
 
     // --- Events ---
-    event ModifyParameters(bytes32 parameter, address data);
-    event ModifyParameters(bytes32 parameter, uint256 data);
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
     event FailedUniswapPairSync(bytes reason);
-    event FailRewardCaller(bytes revertReason, address feeReceiver, uint256 amount);
-    event RewardCaller(address feeReceiver, uint256 amount);
-    event AddAuthorization(address account);
-    event RemoveAuthorization(address account);
 
     constructor(
       address converterFeed_,
@@ -146,64 +99,19 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
         if (address(treasury_) != address(0)) {
           require(StabilityFeeTreasuryLike(treasury_).systemCoin() != address(0), "UniswapConsecutiveSlotsPriceFeedMedianizer/treasury-coin-not-set");
         }
-        authorizedAccounts[msg.sender] = 1;
-        converterFeed                  = ConverterFeedLike(converterFeed_);
-        treasury                       = StabilityFeeTreasuryLike(treasury_);
-        uniswapFactory                 = IUniswapV2Factory(uniswapFactory_);
-        defaultAmountIn                = defaultAmountIn_;
-        windowSize                     = windowSize_;
-        maxWindowSize                  = maxWindowSize_;
-        converterFeedScalingFactor     = converterFeedScalingFactor_;
-        baseUpdateCallerReward         = baseUpdateCallerReward_;
-        maxUpdateCallerReward          = maxUpdateCallerReward_;
-        perSecondCallerRewardIncrease  = perSecondCallerRewardIncrease_;
-        granularity                    = granularity_;
-        maxRewardIncreaseDelay         = uint(-1);
-        lastUpdateTime                 = now;
+
+        converterFeed               = ConverterFeedLike(converterFeed_);
+        uniswapFactory              = IUniswapV2Factory(uniswapFactory_);
+        defaultAmountIn             = defaultAmountIn_;
+        windowSize                  = windowSize_;
+        maxWindowSize               = maxWindowSize_;
+        converterFeedScalingFactor  = converterFeedScalingFactor_;
+        granularity                 = granularity_;
+        lastUpdateTime              = now;
+
         // Emit events
-        emit AddAuthorization(msg.sender);
-        emit ModifyParameters(bytes32("treasury"), treasury_);
         emit ModifyParameters(bytes32("converterFeed"), converterFeed_);
         emit ModifyParameters(bytes32("maxWindowSize"), maxWindowSize_);
-        emit ModifyParameters(bytes32("baseUpdateCallerReward"), baseUpdateCallerReward);
-        emit ModifyParameters(bytes32("maxUpdateCallerReward"), maxUpdateCallerReward);
-        emit ModifyParameters(bytes32("perSecondCallerRewardIncrease"), perSecondCallerRewardIncrease);
-    }
-
-    // --- Math ---
-    uint256 internal constant WAD = 10 ** 18;
-    uint256 internal constant RAY = 10 ** 27;
-    function minimum(uint x, uint y) internal pure returns (uint z) {
-        z = (x <= y) ? x : y;
-    }
-    function wmultiply(uint x, uint y) internal pure returns (uint z) {
-        z = multiply(x, y) / WAD;
-    }
-    function rmultiply(uint x, uint y) internal pure returns (uint z) {
-        z = multiply(x, y) / RAY;
-    }
-    function rpower(uint x, uint n, uint base) internal pure returns (uint z) {
-        assembly {
-            switch x case 0 {switch n case 0 {z := base} default {z := 0}}
-            default {
-                switch mod(n, 2) case 0 { z := base } default { z := x }
-                let half := div(base, 2)  // for rounding.
-                for { n := div(n, 2) } n { n := div(n,2) } {
-                    let xx := mul(x, x)
-                    if iszero(eq(div(xx, x), x)) { revert(0,0) }
-                    let xxRound := add(xx, half)
-                    if lt(xxRound, xx) { revert(0,0) }
-                    x := div(xxRound, base)
-                    if mod(n,2) {
-                        let zx := mul(z, x)
-                        if and(iszero(iszero(x)), iszero(eq(div(zx, x), z))) { revert(0,0) }
-                        let zxRound := add(zx, half)
-                        if lt(zxRound, zx) { revert(0,0) }
-                        z := div(zxRound, base)
-                    }
-                }
-            }
-        }
     }
 
     // --- Administration ---
@@ -339,43 +247,6 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is UniswapV2Library, Uniswap
     **/
     function getObservationListLength() public view returns (uint256, uint256) {
         return (uniswapObservations.length, converterFeedObservations.length);
-    }
-
-    // --- Treasury Utils ---
-    function treasuryAllowance() public view returns (uint256) {
-        (uint total, uint perBlock) = treasury.getAllowance(address(this));
-        return minimum(total, perBlock);
-    }
-    function getCallerReward() public view returns (uint256) {
-        if (lastUpdateTime == 0) return baseUpdateCallerReward;
-        uint256 timeElapsed = subtract(now, lastUpdateTime);
-        if (timeElapsed < periodSize) {
-            return 0;
-        }
-        uint256 adjustedTime = subtract(timeElapsed, periodSize);
-        uint256 maxReward    = minimum(maxUpdateCallerReward, treasuryAllowance() / RAY);
-        if (adjustedTime > maxRewardIncreaseDelay) {
-            return maxReward;
-        }
-        uint256 baseReward   = baseUpdateCallerReward;
-        if (adjustedTime > 0) {
-            baseReward = rmultiply(rpower(perSecondCallerRewardIncrease, adjustedTime, RAY), baseReward);
-        }
-        if (baseReward > maxReward) {
-            baseReward = maxReward;
-        }
-        return baseReward;
-    }
-    function rewardCaller(address proposedFeeReceiver, uint256 reward) internal {
-        if (address(treasury) == proposedFeeReceiver) return;
-        if (either(address(treasury) == address(0), reward == 0)) return;
-        address finalFeeReceiver = (proposedFeeReceiver == address(0)) ? msg.sender : proposedFeeReceiver;
-        try treasury.pullFunds(finalFeeReceiver, treasury.systemCoin(), reward) {
-            emit RewardCaller(finalFeeReceiver, reward);
-        }
-        catch(bytes memory revertReason) {
-            emit FailRewardCaller(revertReason, finalFeeReceiver, reward);
-        }
     }
 
     // --- Uniswap Utils ---
