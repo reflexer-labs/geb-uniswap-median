@@ -86,8 +86,8 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
 
     uint256 baseCallerReward = 15 ether;
     uint256 maxCallerReward  = 20 ether;
-    uint256 maxRewardDelay   = 40 minutes;
-    uint256 perSecondCallerRewardIncrease = 1.01E27;
+    uint256 maxRewardDelay   = 42 days;
+    uint256 perSecondCallerRewardIncrease = 1000192559420674483977255848; // 100% over 1 hour
 
     uint erraticDelay = 3 hours;
     address alice     = address(0x4567);

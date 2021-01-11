@@ -5,13 +5,13 @@ import '../interfaces/IUniswapV2Factory.sol';
 
 contract UniswapV2Library {
     // --- Math ---
-    function addition(uint x, uint y) internal pure returns (uint z) {
+    function uniAddition(uint x, uint y) internal pure returns (uint z) {
         require((z = x + y) >= x, 'UniswapV2Library: add-overflow');
     }
-    function subtract(uint x, uint y) internal pure returns (uint z) {
+    function uniSubtract(uint x, uint y) internal pure returns (uint z) {
         require((z = x - y) <= x, 'UniswapV2Library: sub-underflow');
     }
-    function multiply(uint x, uint y) internal pure returns (uint z) {
+    function uniMultiply(uint x, uint y) internal pure returns (uint z) {
         require(y == 0 || (z = x * y) / y == x, 'UniswapV2Library: mul-overflow');
     }
 
@@ -39,16 +39,16 @@ contract UniswapV2Library {
     function quote(uint amountA, uint reserveA, uint reserveB) internal pure returns (uint amountB) {
         require(amountA > 0, 'UniswapV2Library: INSUFFICIENT_AMOUNT');
         require(reserveA > 0 && reserveB > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-        amountB = multiply(amountA, reserveB) / reserveA;
+        amountB = uniMultiply(amountA, reserveB) / reserveA;
     }
 
     // Given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
     function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
         require(amountIn > 0, 'UniswapV2Library: INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-        uint amountInWithFee = multiply(amountIn, 997);
-        uint numerator = multiply(amountInWithFee, reserveOut);
-        uint denominator = addition(multiply(reserveIn, 1000), amountInWithFee);
+        uint amountInWithFee = uniMultiply(amountIn, 997);
+        uint numerator = uniMultiply(amountInWithFee, reserveOut);
+        uint denominator = uniAddition(uniMultiply(reserveIn, 1000), amountInWithFee);
         amountOut = numerator / denominator;
     }
 
@@ -56,9 +56,9 @@ contract UniswapV2Library {
     function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal pure returns (uint amountIn) {
         require(amountOut > 0, 'UniswapV2Library: INSUFFICIENT_OUTPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-        uint numerator = multiply(multiply(reserveIn, amountOut), 1000);
-        uint denominator = multiply(subtract(reserveOut, amountOut), 997);
-        amountIn = addition((numerator / denominator), 1);
+        uint numerator = uniMultiply(uniMultiply(reserveIn, amountOut), 1000);
+        uint denominator = uniMultiply(uniSubtract(reserveOut, amountOut), 997);
+        amountIn = uniAddition((numerator / denominator), 1);
     }
 
     // performs chained getAmountOut calculations on any number of pairs

@@ -1,6 +1,6 @@
 pragma solidity 0.6.7;
 
-import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol"
+import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol";
 
 import './uni/interfaces/IUniswapV2Factory.sol';
 import './uni/interfaces/IUniswapV2Pair.sol';
@@ -267,7 +267,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is IncreasingTreasuryReimbur
         uq112x112 memory priceAverage = uq112x112(
             uint224((priceCumulativeEnd - priceCumulativeStart) / timeElapsed)
         );
-        amountOut = decode144(multiply(priceAverage, amountIn));
+        amountOut = decode144(mul(priceAverage, amountIn));
     }
 
     // --- Converter Utils ---
@@ -317,8 +317,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is IncreasingTreasuryReimbur
           emit FailedUniswapPairSync(uniswapRevertReason);
         }
 
+        // Get the last update time used when calculating the reward
+        uint256 rewardCalculationLastUpdateTime = (uniswapObservations.length == 0) ? 0 : lastUpdateTime;
         // Get caller's reward
-        uint256 callerReward = getCallerReward(lastUpdateTime, periodSize);
+        uint256 callerReward = getCallerReward(rewardCalculationLastUpdateTime, periodSize);
 
         // Get Uniswap cumulative prices
         (uint uniswapPrice0Cumulative, uint uniswapPrice1Cumulative,) = currentCumulativePrices(uniswapPair);

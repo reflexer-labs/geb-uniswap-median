@@ -25,9 +25,9 @@ contract UniswapV2OracleLibrary is FixedPointMath {
             uint32 timeElapsed = blockTimestamp - blockTimestampLast;
             // addition overflow is desired
             // counterfactual
-            price0Cumulative += uint(fraction(reserve1, reserve0)._x) * timeElapsed;
+            price0Cumulative += uint(frac(reserve1, reserve0)._x) * timeElapsed;
             // counterfactual
-            price1Cumulative += uint(fraction(reserve0, reserve1)._x) * timeElapsed;
+            price1Cumulative += uint(frac(reserve0, reserve1)._x) * timeElapsed;
         }
     }
 }

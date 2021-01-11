@@ -87,8 +87,8 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
 
     uint256 baseCallerReward = 15 ether;
     uint256 maxCallerReward  = 20 ether;
-    uint256 maxRewardDelay   = 10;
-    uint256 perSecondCallerRewardIncrease = 1.01E27;
+    uint256 maxRewardDelay   = 42 days;
+    uint256 perSecondCallerRewardIncrease = 1000192559420674483977255848; // 100% over 1 hour
 
     uint erraticDelay = 3 hours;
     address alice     = address(0x4567);
@@ -512,7 +512,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(uniTimestamp, now);
         assertEq(price0Cumulative, 317082312251449702080310206411507700);
         assertEq(price1Cumulative, 1101312847350787220573278491526876720617);
-        assertEq(rai.balanceOf(alice), 0);
+        assertEq(rai.balanceOf(alice), baseCallerReward);
         assertEq(uniswapRAIWETHMedianizer.updates(), 1);
 
         // RAI/USDC
@@ -532,7 +532,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(uniTimestamp, now);
         assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
         assertEq(price1Cumulative, 79270578062783154942013374);
-        assertEq(rai.balanceOf(alice), 0);
+        assertEq(rai.balanceOf(alice), baseCallerReward * 2);
         assertEq(uniswapRAIUSDCMedianizer.updates(), 1);
     }
     function testFail_read_raieth_before_passing_granularity() public {
@@ -671,20 +671,21 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(price1Cumulative, 79270578062783154942013374);
     }
     function test_wait_more_than_maxUpdateCallerReward_since_last_update() public {
-        hevm.warp(now + 3599);
+        hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
         uniswapRAIWETHMedianizer.updateResult(address(0x1234));
-
-        assertEq(rai.balanceOf(address(0x1234)), 0);
-
-        hevm.warp(now + 3599 + maxRewardDelay + 1);
-        uniswapRAIWETHMedianizer.updateResult(address(0x1234));
-
         assertEq(rai.balanceOf(address(0x1234)), baseCallerReward);
 
-        hevm.warp(now + 3599 + maxRewardDelay + 1);
+        hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
         uniswapRAIWETHMedianizer.updateResult(address(0x1234));
+        assertEq(rai.balanceOf(address(0x1234)), baseCallerReward * 2);
 
-        assertEq(rai.balanceOf(address(0x1234)), baseCallerReward + maxCallerReward);
+        hevm.warp(now + uniswapRAIWETHMedianizer.periodSize() + maxRewardDelay + 1);
+        uniswapRAIWETHMedianizer.updateResult(address(0x1234));
+        assertEq(rai.balanceOf(address(0x1234)), baseCallerReward * 2 + maxCallerReward);
+
+        hevm.warp(now + uniswapRAIWETHMedianizer.periodSize() + maxRewardDelay + 1);
+        uniswapRAIWETHMedianizer.updateResult(address(0x1234));
+        assertEq(rai.balanceOf(address(0x1234)), baseCallerReward * 2 + maxCallerReward * 2);
     }
     function test_get_result_when_time_elapsed_above_max_window() public {
         uniswapRAIUSDCMedianizer.modifyParameters("maxWindowSize", 25 hours);
