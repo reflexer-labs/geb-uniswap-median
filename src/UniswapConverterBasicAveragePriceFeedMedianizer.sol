@@ -70,6 +70,8 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
     uint256 public converterFeedScalingFactor;
     // The last computed median price
     uint256 private medianPrice;
+    // Manual flag that can be set by governance and indicates if a result is valid or not
+    uint256 public validityFlag;
 
     // --- Events ---
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
@@ -104,6 +106,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
         windowSize                     = windowSize_;
         converterFeedScalingFactor     = converterFeedScalingFactor_;
         granularity                    = granularity_;
+        validityFlag                   = 1;
 
         // Populate the arrays with empty observations
         for (uint i = uniswapObservations.length; i < granularity; i++) {
@@ -151,6 +154,10 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
     }
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
         if (parameter == "baseUpdateCallerReward") baseUpdateCallerReward = data;
+        else if (parameter == "validityFlag") {
+          require(either(data == 1, data == 0), "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-data");
+          validityFlag = data;
+        }
         else if (parameter == "maxUpdateCallerReward") {
           require(data > baseUpdateCallerReward, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-max-reward");
           maxUpdateCallerReward = data;
@@ -352,13 +359,16 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
     * @notice Fetch the latest medianPrice or revert if is is null
     **/
     function read() external view returns (uint256) {
-        require(both(medianPrice > 0, updates >= granularity), "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-price-feed");
+        require(
+          both(both(medianPrice > 0, updates >= granularity), validityFlag == 1),
+          "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-price-feed"
+        );
         return medianPrice;
     }
     /**
     * @notice Fetch the latest medianPrice and whether it is null or not
     **/
     function getResultWithValidity() external view returns (uint256, bool) {
-        return (medianPrice, both(medianPrice > 0, updates >= granularity));
+        return (medianPrice, both(both(medianPrice > 0, updates >= granularity), validityFlag == 1));
     }
 }

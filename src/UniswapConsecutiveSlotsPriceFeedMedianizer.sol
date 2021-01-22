@@ -67,6 +67,8 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is IncreasingTreasuryReimbur
     uint256 public converterFeedScalingFactor;
     // The last computed median price
     uint256 private medianPrice;
+    // Manual flag that can be set by governance and indicates if a result is valid or not
+    uint256 public validityFlag;
 
     // --- Events ---
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
@@ -105,6 +107,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is IncreasingTreasuryReimbur
         converterFeedScalingFactor  = converterFeedScalingFactor_;
         granularity                 = granularity_;
         lastUpdateTime              = now;
+        validityFlag                = 1;
 
         // Emit events
         emit ModifyParameters(bytes32("converterFeed"), converterFeed_);
@@ -148,6 +151,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is IncreasingTreasuryReimbur
     }
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
         if (parameter == "baseUpdateCallerReward") baseUpdateCallerReward = data;
+        else if (parameter == "validityFlag") {
+          require(either(data == 1, data == 0), "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-data");
+          validityFlag = data;
+        }
         else if (parameter == "maxUpdateCallerReward") {
           require(data > baseUpdateCallerReward, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-max-reward");
           maxUpdateCallerReward = data;
@@ -374,13 +381,19 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is IncreasingTreasuryReimbur
     * @notice Fetch the latest medianPrice or revert if is is null
     **/
     function read() external view returns (uint256) {
-        require(both(both(medianPrice > 0, updates > granularity), timeElapsedSinceFirstObservation() <= maxWindowSize), "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-price-feed");
+        require(
+          both(both(both(medianPrice > 0, updates > granularity), timeElapsedSinceFirstObservation() <= maxWindowSize), validityFlag == 1),
+          "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-price-feed"
+        );
         return medianPrice;
     }
     /**
     * @notice Fetch the latest medianPrice and whether it is null or not
     **/
     function getResultWithValidity() external view returns (uint256, bool) {
-        return (medianPrice, both(both(medianPrice > 0, updates > granularity), timeElapsedSinceFirstObservation() <= maxWindowSize));
+        return (
+          medianPrice,
+          both(both(both(medianPrice > 0, updates > granularity), timeElapsedSinceFirstObservation() <= maxWindowSize), validityFlag == 1)
+        );
     }
 }
