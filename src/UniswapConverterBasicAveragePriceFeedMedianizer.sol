@@ -153,13 +153,16 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
         emit ModifyParameters(parameter, data);
     }
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
-        if (parameter == "baseUpdateCallerReward") baseUpdateCallerReward = data;
+        if (parameter == "baseUpdateCallerReward") {
+          require(data <= maxUpdateCallerReward, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-base-reward");
+          baseUpdateCallerReward = data;
+        }
         else if (parameter == "validityFlag") {
           require(either(data == 1, data == 0), "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-data");
           validityFlag = data;
         }
         else if (parameter == "maxUpdateCallerReward") {
-          require(data > baseUpdateCallerReward, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-max-reward");
+          require(data >= baseUpdateCallerReward, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-max-reward");
           maxUpdateCallerReward = data;
         }
         else if (parameter == "perSecondCallerRewardIncrease") {

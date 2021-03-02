@@ -150,13 +150,16 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is IncreasingTreasuryReimbur
         emit ModifyParameters(parameter, data);
     }
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
-        if (parameter == "baseUpdateCallerReward") baseUpdateCallerReward = data;
+        if (parameter == "baseUpdateCallerReward") {
+          require(data <= maxUpdateCallerReward, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-base-reward");
+          baseUpdateCallerReward = data;
+        }
         else if (parameter == "validityFlag") {
           require(either(data == 1, data == 0), "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-data");
           validityFlag = data;
         }
         else if (parameter == "maxUpdateCallerReward") {
-          require(data > baseUpdateCallerReward, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-max-reward");
+          require(data >= baseUpdateCallerReward, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-max-reward");
           maxUpdateCallerReward = data;
         }
         else if (parameter == "perSecondCallerRewardIncrease") {
