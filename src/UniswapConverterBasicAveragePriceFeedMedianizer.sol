@@ -1,6 +1,6 @@
 pragma solidity 0.6.7;
 
-import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol";
+import "geb-treasury-reimbursement/math/GebMath.sol";
 
 import './uni/interfaces/IUniswapV2Factory.sol';
 import './uni/interfaces/IUniswapV2Pair.sol';
@@ -13,7 +13,37 @@ abstract contract ConverterFeedLike {
     function updateResult(address) virtual external;
 }
 
-contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryReimbursement, UniswapV2Library, UniswapV2OracleLibrary {
+abstract contract IncreasingRewardRelayerLike {
+    function reimburseCaller(address) virtual external;
+}
+
+contract UniswapConverterBasicAveragePriceFeedMedianizer is GebMath, UniswapV2Library, UniswapV2OracleLibrary {
+    // --- Auth ---
+    mapping (address => uint) public authorizedAccounts;
+    /**
+     * @notice Add auth to an account
+     * @param account Account to add auth to
+     */
+    function addAuthorization(address account) virtual external isAuthorized {
+        authorizedAccounts[account] = 1;
+        emit AddAuthorization(account);
+    }
+    /**
+     * @notice Remove auth from an account
+     * @param account Account to remove auth from
+     */
+    function removeAuthorization(address account) virtual external isAuthorized {
+        authorizedAccounts[account] = 0;
+        emit RemoveAuthorization(account);
+    }
+    /**
+    * @notice Checks whether msg.sender can call an authed function
+    **/
+    modifier isAuthorized {
+        require(authorizedAccounts[msg.sender] == 1, "UniswapConverterBasicAveragePriceFeedMedianizer/account-not-authorized");
+        _;
+    }
+
     // --- Observations ---
     struct UniswapObservation {
         uint timestamp;
@@ -73,7 +103,20 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
     // Manual flag that can be set by governance and indicates if a result is valid or not
     uint256 public validityFlag;
 
+    // Contract relaying the SF reward to addresses that update this oracle
+    IncreasingRewardRelayerLike public relayer;
+
     // --- Events ---
+    event AddAuthorization(address account);
+    event RemoveAuthorization(address account);
+    event ModifyParameters(
+      bytes32 parameter,
+      address addr
+    );
+    event ModifyParameters(
+      bytes32 parameter,
+      uint256 val
+    );
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
     event FailedUniswapPairSync(bytes reason);
@@ -81,15 +124,11 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
     constructor(
       address converterFeed_,
       address uniswapFactory_,
-      address treasury_,
       uint256 defaultAmountIn_,
       uint256 windowSize_,
       uint256 converterFeedScalingFactor_,
-      uint256 baseUpdateCallerReward_,
-      uint256 maxUpdateCallerReward_,
-      uint256 perSecondCallerRewardIncrease_,
       uint8   granularity_
-    ) public IncreasingTreasuryReimbursement(treasury_, baseUpdateCallerReward_, maxUpdateCallerReward_, perSecondCallerRewardIncrease_) {
+    ) public {
         require(uniswapFactory_ != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapConverterBasicAveragePriceFeedMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapConverterBasicAveragePriceFeedMedianizer/null-window-size');
@@ -99,6 +138,8 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
             (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
             'UniswapConverterBasicAveragePriceFeedMedianizer/window-not-evenly-divisible'
         );
+
+        authorizedAccounts[msg.sender] = 1;
 
         converterFeed                  = ConverterFeedLike(converterFeed_);
         uniswapFactory                 = IUniswapV2Factory(uniswapFactory_);
@@ -114,6 +155,8 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
             converterFeedObservations.push();
         }
 
+        // Emit events
+        emit AddAuthorization(msg.sender);
         emit ModifyParameters(bytes32("converterFeed"), converterFeed_);
     }
 
@@ -129,10 +172,6 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
           require(data != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-converter-feed");
           converterFeed = ConverterFeedLike(data);
         }
-        else if (parameter == "treasury") {
-      	  require(StabilityFeeTreasuryLike(data).systemCoin() != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/treasury-coin-not-set");
-      	  treasury = StabilityFeeTreasuryLike(data);
-      	}
         else if (parameter == "targetToken") {
           require(uniswapPair == address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/pair-already-set");
           targetToken = data;
@@ -149,29 +188,16 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
             require(uniswapPair != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-uniswap-pair");
           }
         }
+        else if (parameter == "relayer") {
+          relayer = IncreasingRewardRelayerLike(data);
+        }
         else revert("UniswapConverterBasicAveragePriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
-        if (parameter == "baseUpdateCallerReward") {
-          require(data <= maxUpdateCallerReward, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-base-reward");
-          baseUpdateCallerReward = data;
-        }
-        else if (parameter == "validityFlag") {
+        if (parameter == "validityFlag") {
           require(either(data == 1, data == 0), "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-data");
           validityFlag = data;
-        }
-        else if (parameter == "maxUpdateCallerReward") {
-          require(data >= baseUpdateCallerReward, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-max-reward");
-          maxUpdateCallerReward = data;
-        }
-        else if (parameter == "perSecondCallerRewardIncrease") {
-          require(data >= RAY, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-reward-increase");
-          perSecondCallerRewardIncrease = data;
-        }
-        else if (parameter == "maxRewardIncreaseDelay") {
-          require(data > 0, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-max-increase-delay");
-          maxRewardIncreaseDelay = data;
         }
         else if (parameter == "defaultAmountIn") {
           require(data > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in");
@@ -182,6 +208,9 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
     }
 
     // --- General Utils ---
+    function either(bool x, bool y) internal pure returns (bool z) {
+        assembly{ z := or(x, y)}
+    }
     function both(bool x, bool y) private pure returns (bool z) {
         assembly{ z := and(x, y)}
     }
@@ -279,6 +308,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
     * @notice Update the internal median price
     **/
     function updateResult(address feeReceiver) external {
+        require(address(relayer) != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-relayer");
         require(uniswapPair != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-uniswap-pair");
 
         // Get final fee receiver
@@ -304,8 +334,6 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
 
         // Get the last update time used when calculating the reward
         uint256 rewardCalculationLastUpdateTime = (uniswapObservations.length == 0) ? 0 : lastUpdateTime;
-        // Get caller's reward
-        uint256 callerReward = getCallerReward(rewardCalculationLastUpdateTime, periodSize);
 
         // Get Uniswap cumulative prices
         (uint uniswapPrice0Cumulative, uint uniswapPrice1Cumulative,) = currentCumulativePrices(uniswapPair);
@@ -321,7 +349,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is IncreasingTreasuryRe
         emit UpdateResult(medianPrice, lastUpdateTime);
 
         // Reward caller
-        rewardCaller(feeReceiver, callerReward);
+        relayer.reimburseCaller(finalFeeReceiver);
     }
     /**
     * @notice Push new observation data in the observation arrays

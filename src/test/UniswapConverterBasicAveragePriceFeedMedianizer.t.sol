@@ -3,6 +3,7 @@ pragma solidity 0.6.7;
 import "ds-test/test.sol";
 import "ds-weth/weth9.sol";
 import "ds-token/token.sol";
+import "geb-treasury-reimbursement/relayer/IncreasingRewardRelayer.sol";
 
 import "./orcl/MockMedianizer.sol";
 import "./geb/MockTreasury.sol";
@@ -44,6 +45,9 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
 
     ETHMedianizer converterETHPriceFeed;
     USDCMedianizer converterUSDCPriceFeed;
+
+    IncreasingRewardRelayer usdcRelayer;
+    IncreasingRewardRelayer ethRelayer;
 
     UniswapConverterBasicAveragePriceFeedMedianizer uniswapRAIWETHMedianizer;
     UniswapConverterBasicAveragePriceFeedMedianizer uniswapRAIUSDCMedianizer;
@@ -121,38 +125,52 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         uniswapRAIWETHMedianizer = new UniswapConverterBasicAveragePriceFeedMedianizer(
             address(0x1),
             address(uniswapFactory),
-            address(treasury),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
-            baseCallerReward,
-            maxCallerReward,
-            perSecondCallerRewardIncrease,
             uniswapMedianizerGranularity
         );
         uniswapRAIUSDCMedianizer = new UniswapConverterBasicAveragePriceFeedMedianizer(
             address(0x1),
             address(uniswapFactory),
-            address(treasury),
             uniswapUSDCRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
-            baseCallerReward,
-            maxCallerReward,
-            perSecondCallerRewardIncrease,
             uniswapMedianizerGranularity
         );
 
+        // Setup the reward relayers
+        ethRelayer = new IncreasingRewardRelayer(
+            address(uniswapRAIWETHMedianizer),
+            address(treasury),
+            baseCallerReward,
+            maxCallerReward,
+            perSecondCallerRewardIncrease,
+            uniswapRAIWETHMedianizer.periodSize()
+        );
+        usdcRelayer = new IncreasingRewardRelayer(
+            address(uniswapRAIUSDCMedianizer),
+            address(treasury),
+            baseCallerReward,
+            maxCallerReward,
+            perSecondCallerRewardIncrease,
+            uniswapRAIUSDCMedianizer.periodSize()
+        );
+
+        // Add reward relayers inside the oracle contracts
+        uniswapRAIWETHMedianizer.modifyParameters("relayer", address(ethRelayer));
+        uniswapRAIUSDCMedianizer.modifyParameters("relayer", address(usdcRelayer));
+
         // Set max reward increase delay
-        uniswapRAIWETHMedianizer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
-        uniswapRAIUSDCMedianizer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
+        ethRelayer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
+        usdcRelayer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
 
         // Set treasury allowance
-        treasury.setTotalAllowance(address(uniswapRAIWETHMedianizer), uint(-1));
-        treasury.setPerBlockAllowance(address(uniswapRAIWETHMedianizer), uint(-1));
+        treasury.setTotalAllowance(address(ethRelayer), uint(-1));
+        treasury.setPerBlockAllowance(address(ethRelayer), uint(-1));
 
-        treasury.setTotalAllowance(address(uniswapRAIUSDCMedianizer), uint(-1));
-        treasury.setPerBlockAllowance(address(uniswapRAIUSDCMedianizer), uint(-1));
+        treasury.setTotalAllowance(address(usdcRelayer), uint(-1));
+        treasury.setPerBlockAllowance(address(usdcRelayer), uint(-1));
 
         // Set converter addresses
         uniswapRAIWETHMedianizer.modifyParameters("converterFeed", address(converterETHPriceFeed));
@@ -349,8 +367,8 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         assertEq(uniswapRAIWETHMedianizer.periodSize(), 3600);
         assertEq(uniswapRAIUSDCMedianizer.periodSize(), 3600);
 
-        assertEq(uniswapRAIWETHMedianizer.maxRewardIncreaseDelay(), maxRewardDelay);
-        assertEq(uniswapRAIUSDCMedianizer.maxRewardIncreaseDelay(), maxRewardDelay);
+        assertEq(ethRelayer.maxRewardIncreaseDelay(), maxRewardDelay);
+        assertEq(usdcRelayer.maxRewardIncreaseDelay(), maxRewardDelay);
 
         assertEq(uniswapRAIWETHMedianizer.converterFeedScalingFactor(), converterScalingFactor);
         assertEq(uniswapRAIUSDCMedianizer.converterFeedScalingFactor(), converterScalingFactor);
@@ -367,17 +385,17 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         assertTrue(uniswapRAIWETHMedianizer.uniswapPair() == address(raiWETHPair));
         assertTrue(uniswapRAIUSDCMedianizer.uniswapPair() == address(raiUSDCPair));
 
-        assertTrue(address(uniswapRAIWETHMedianizer.treasury()) == address(treasury));
-        assertTrue(address(uniswapRAIUSDCMedianizer.treasury()) == address(treasury));
+        assertTrue(address(ethRelayer.treasury()) == address(treasury));
+        assertTrue(address(usdcRelayer.treasury()) == address(treasury));
 
-        assertEq(uniswapRAIWETHMedianizer.baseUpdateCallerReward(), baseCallerReward);
-        assertEq(uniswapRAIUSDCMedianizer.baseUpdateCallerReward(), baseCallerReward);
+        assertEq(ethRelayer.baseUpdateCallerReward(), baseCallerReward);
+        assertEq(usdcRelayer.baseUpdateCallerReward(), baseCallerReward);
 
-        assertEq(uniswapRAIWETHMedianizer.maxUpdateCallerReward(), maxCallerReward);
-        assertEq(uniswapRAIUSDCMedianizer.maxUpdateCallerReward(), maxCallerReward);
+        assertEq(ethRelayer.maxUpdateCallerReward(), maxCallerReward);
+        assertEq(usdcRelayer.maxUpdateCallerReward(), maxCallerReward);
 
-        assertEq(uniswapRAIWETHMedianizer.perSecondCallerRewardIncrease(), perSecondCallerRewardIncrease);
-        assertEq(uniswapRAIUSDCMedianizer.perSecondCallerRewardIncrease(), perSecondCallerRewardIncrease);
+        assertEq(ethRelayer.perSecondCallerRewardIncrease(), perSecondCallerRewardIncrease);
+        assertEq(usdcRelayer.perSecondCallerRewardIncrease(), perSecondCallerRewardIncrease);
 
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertEq(medianPrice, 0);
@@ -405,55 +423,19 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         uniswapRAIWETHMedianizer = new UniswapConverterBasicAveragePriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
-            address(treasury),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
-            baseCallerReward,
-            maxCallerReward,
-            perSecondCallerRewardIncrease,
             1
-        );
-    }
-    function testFail_max_reward_smaller_than_base() public {
-        uniswapRAIWETHMedianizer = new UniswapConverterBasicAveragePriceFeedMedianizer(
-            address(converterETHPriceFeed),
-            address(uniswapFactory),
-            address(treasury),
-            uniswapETHRAIMedianizerDefaultAmountIn,
-            uniswapMedianizerWindowSize,
-            converterScalingFactor,
-            baseCallerReward,
-            0,
-            perSecondCallerRewardIncrease,
-            uniswapMedianizerGranularity
-        );
-    }
-    function testFail_negative_reward_increase() public {
-        uniswapRAIWETHMedianizer = new UniswapConverterBasicAveragePriceFeedMedianizer(
-            address(converterETHPriceFeed),
-            address(uniswapFactory),
-            address(treasury),
-            uniswapETHRAIMedianizerDefaultAmountIn,
-            uniswapMedianizerWindowSize,
-            converterScalingFactor,
-            baseCallerReward,
-            maxCallerReward,
-            RAY - 1,
-            uniswapMedianizerGranularity
         );
     }
     function testFail_window_not_evenly_divisible() public {
         uniswapRAIWETHMedianizer = new UniswapConverterBasicAveragePriceFeedMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
-            address(treasury),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
-            baseCallerReward,
-            maxCallerReward,
-            perSecondCallerRewardIncrease,
             23
         );
     }
@@ -547,14 +529,14 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         MockRevertableTreasury revertTreasury = new MockRevertableTreasury();
 
         // Set treasury allowance
-        revertTreasury.setTotalAllowance(address(uniswapRAIWETHMedianizer), uint(-1));
-        revertTreasury.setPerBlockAllowance(address(uniswapRAIWETHMedianizer), uint(-1));
+        revertTreasury.setTotalAllowance(address(ethRelayer), uint(-1));
+        revertTreasury.setPerBlockAllowance(address(usdcRelayer), uint(-1));
 
-        revertTreasury.setTotalAllowance(address(uniswapRAIUSDCMedianizer), uint(-1));
-        revertTreasury.setPerBlockAllowance(address(uniswapRAIUSDCMedianizer), uint(-1));
+        revertTreasury.setTotalAllowance(address(ethRelayer), uint(-1));
+        revertTreasury.setPerBlockAllowance(address(usdcRelayer), uint(-1));
 
-        uniswapRAIWETHMedianizer.modifyParameters("treasury", address(revertTreasury));
-        uniswapRAIUSDCMedianizer.modifyParameters("treasury", address(revertTreasury));
+        ethRelayer.modifyParameters("treasury", address(revertTreasury));
+        usdcRelayer.modifyParameters("treasury", address(revertTreasury));
 
         hevm.warp(now + 3599);
         assertEq(rai.balanceOf(alice), 0);
