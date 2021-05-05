@@ -486,8 +486,8 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initETHUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 317082312251449702080310206411507700);
-        assertEq(price1Cumulative, 1101312847350787220573278491526876720617);
+        assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
+        assertEq(price1Cumulative, 317082312251449702080310206411507700);
         assertEq(rai.balanceOf(alice), baseCallerReward);
         assertEq(uniswapRAIWETHMedianizer.updates(), 1);
 
@@ -625,8 +625,8 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initETHUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 317082312251449702080310206411507700);
-        assertEq(price1Cumulative, 1101312847350787220573278491526876720617);
+        assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
+        assertEq(price1Cumulative, 317082312251449702080310206411507700);
 
         // RAI/USDC
         uniswapRAIUSDCMedianizer.updateResult(address(this));
