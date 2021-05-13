@@ -158,7 +158,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is GebMath, UniswapV2Library
 
     // --- Administration ---
     /**
-    * @notice Modify the converter feed address
+    * @notice Modify address parameters
     * @param parameter Name of the parameter to modify
     * @param data New parameter value
     **/
@@ -190,6 +190,11 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is GebMath, UniswapV2Library
         else revert("UniswapConsecutiveSlotsPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
+    /**
+    * @notice Modify uint256 parameters
+    * @param parameter Name of the parameter to modify
+    * @param data New parameter value
+    **/
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
         if (parameter == "validityFlag") {
           require(either(data == 1, data == 0), "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-data");
