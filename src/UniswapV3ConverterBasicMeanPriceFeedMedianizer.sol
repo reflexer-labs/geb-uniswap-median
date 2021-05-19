@@ -125,7 +125,62 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
         emit ModifyParameters(bytes32("converterFeed"), converterFeed_);
     }
 
+    // --- Administration ---
+    /**
+    * @notice Modify address parameters
+    * @param parameter Name of the parameter to modify
+    * @param data New parameter value
+    **/
+    function modifyParameters(bytes32 parameter, address data) external isAuthorized {
+        require(data != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-data");
+        if (parameter == "converterFeed") {
+          require(data != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-converter-feed");
+          converterFeed = ConverterFeedLike(data);
+        }
+        else if (parameter == "targetToken") {
+          require(uniswapPool == address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/pair-already-set");
+          targetToken = data;
+          if (denominationToken != address(0)) {
+            uniswapPool = uniswapV3Factory.getPool(targetToken, denominationToken,3000);
+            require(uniswapPool != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-uniswap-pair");
+          }
+        }
+        else if (parameter == "denominationToken") {
+          require(uniswapPool == address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/pair-already-set");
+          denominationToken = data;
+          if (targetToken != address(0)) {
+            uniswapPool = uniswapV3Factory.getPool(targetToken, denominationToken,3000);
+            require(uniswapPool != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-uniswap-pair");
+          }
+        }
+        else if (parameter == "relayer") {
+          relayer = IncreasingRewardRelayerLike(data);
+        }
+        else revert("UniswapConverterBasicAveragePriceFeedMedianizer/modify-unrecognized-param");
+        emit ModifyParameters(parameter, data);
+    }
+    /**
+    * @notice Modify uint256 parameters
+    * @param parameter Name of the parameter to modify
+    * @param data New parameter value
+    **/
+    function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
+        if (parameter == "validityFlag") {
+          require(either(data == 1, data == 0), "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-data");
+          validityFlag = data;
+        }
+        else if (parameter == "defaultAmountIn") {
+          require(data > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in");
+          defaultAmountIn = data;
+        }
+        else revert("UniswapConverterBasicAveragePriceFeedMedianizer/modify-unrecognized-param");
+        emit ModifyParameters(parameter, data);
+    }
+
     // --- General Utils --
+    function either(bool x, bool y) internal pure returns (bool z) {
+        assembly{ z := or(x, y)}
+    }
     function both(bool x, bool y) private pure returns (bool z) {
         assembly{ z := and(x, y)}
     }
