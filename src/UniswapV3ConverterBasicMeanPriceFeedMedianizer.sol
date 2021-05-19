@@ -62,28 +62,14 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
 
     // --- Converter Feed Vars ---
     // Latest converter price accumulator snapshot
-    uint256                    public converterPriceCumulative;
-
     ConverterFeedLike          public converterFeed;
-    ConverterFeedObservation[] public converterFeedObservations;
+
 
     // --- General Vars ---
     // Symbol - you want to change this every deployment
     bytes32 public symbol = "raiusd";
-    /**
-        The number of observations stored for the pair, i.e. how many price observations are stored for the window.
-        as granularity increases from 1, more frequent updates are needed, but moving averages become more precise.
-        averages are computed over intervals with sizes in the range:
-          [windowSize - (windowSize / granularity) * 2, windowSize]
-        e.g. if the window size is 24 hours, and the granularity is 24, the oracle will return the average price for
-          the period:
-          [now - [22 hours, 24 hours], now]
-    **/
-    uint8   public granularity;
     // When the price feed was last updated
     uint256 public lastUpdateTime;
-    // Total number of updates
-    uint256 public updates;
     // The desired amount of time over which the moving average should be computed, e.g. 24 hours
     uint32 public windowSize;
     // This is redundant with granularity and windowSize, but stored for gas savings & informational purposes.
@@ -118,18 +104,12 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
       address uniswapFactory_,
       uint256 defaultAmountIn_,
       uint32 windowSize_,
-      uint256 converterFeedScalingFactor_,
-      uint8   granularity_
+      uint256 converterFeedScalingFactor_
     ) public {
         require(uniswapFactory_ != address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-uniswap-factory");
-        require(granularity_ > 1, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-window-size');
         require(defaultAmountIn_ > 0, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-default-amount-in');
         require(converterFeedScalingFactor_ > 0, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-feed-scaling-factor');
-        require(
-            (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
-            'UniswapV3ConverterBasicMeanPriceFeedMedianizer/window-not-evenly-divisible'
-        );
 
         authorizedAccounts[msg.sender] = 1;
 
@@ -138,25 +118,30 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
         defaultAmountIn                = defaultAmountIn_;
         windowSize                     = windowSize_;
         converterFeedScalingFactor     = converterFeedScalingFactor_;
-        granularity                    = granularity_;
         validityFlag                   = 1;
-
-        // Populate the arrays with empty observations
-        for (uint i = converterFeedObservations.length; i < granularity; i++) {
-            converterFeedObservations.push();
-        }
 
         // Emit events
         emit AddAuthorization(msg.sender);
         emit ModifyParameters(bytes32("converterFeed"), converterFeed_);
     }
 
-    // --- General Utils ---
-    function either(bool x, bool y) internal pure returns (bool z) {
-        assembly{ z := or(x, y)}
-    }
+    // --- General Utils --
     function both(bool x, bool y) private pure returns (bool z) {
         assembly{ z := and(x, y)}
+    }
+
+    // --- Converter Utils ---
+    /**
+    * @notice Calculate the price of an amount of tokens using the convertor price feed. Used after the contract determines
+    *         the amount of Uniswap pair denomination tokens for amountIn target tokens
+    * @param amountIn Amount of denomination tokens to calculate the price for
+    **/
+    function converterComputeAmountOut(
+        uint256 amountIn
+    ) public view returns (uint256 amountOut) {
+        (uint256 priceFeedValue, bool hasValidValue) = converterFeed.getResultWithValidity();
+        require(hasValidValue, "UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-converter-price-feed");
+        amountOut= multiply(amountIn, priceFeedValue) / converterFeedScalingFactor;
     }
 
     // --- Core Logic ---
@@ -176,10 +161,8 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
           emit FailedConverterFeedUpdate(converterRevertReason);
         }
 
-        int24 medianTick = consult(windowSize);
-        medianPrice = getQuoteAtTick(medianTick, uint128(defaultAmountIn), denominationToken, targetToken);
+        medianPrice = getMedianPrice();
         lastUpdateTime = now;
-        updates        = addition(updates, 1);
 
         emit UpdateResult(medianPrice, lastUpdateTime);
 
@@ -187,20 +170,27 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
         relayer.reimburseCaller(finalFeeReceiver);
     }
 
+    function getMedianPrice() internal view returns (uint256 meanPrice) {
+        require(uniswapPool != address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-uniswap-pool");
+        int24 medianTick         = getUniswapMeanTick(windowSize);
+        uint256 uniswapAmountOut = getQuoteAtTick(medianTick, uint128(defaultAmountIn), denominationToken, targetToken);
+        meanPrice               = converterComputeAmountOut(uniswapAmountOut);
+    }
+
     /// @notice Fetches time-weighted average tick using Uniswap V3 oracle
     /// @param period Number of seconds in the past to start calculating time-weighted average
     /// @return timeWeightedAverageTick The time-weighted average tick from (block.timestamp - period) to block.timestamp
-    function consult(uint32 period) internal view returns (int24 timeWeightedAverageTick) {
-        require(period != 0, 'BP');
+    function getUniswapMeanTick(uint32 period) internal view returns (int24 timeWeightedAverageTick) {
+        require(period != 0, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-period');
 
         uint32[] memory secondAgos = new uint32[](2);
         secondAgos[0] = period;
         secondAgos[1] = 0;
 
         (int56[] memory tickCumulatives, ) = IUniswapV3Pool(uniswapPool).observe(secondAgos);
-        int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
+        int56 tickCumulativesDelta         = tickCumulatives[1] - tickCumulatives[0];
 
-        timeWeightedAverageTick = int24(tickCumulativesDelta / period);
+        timeWeightedAverageTick           = int24(tickCumulativesDelta / period);
 
         // Always round to negative infinity
         if (tickCumulativesDelta < 0 && (tickCumulativesDelta % period != 0)) timeWeightedAverageTick--;
@@ -242,15 +232,17 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
     **/
     function read() external view returns (uint256) {
         require(
-          both(both(medianPrice > 0, updates >= granularity), validityFlag == 1),
+          both(medianPrice > 0, validityFlag == 1),
           "UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-price-feed"
         );
-        return medianPrice;
+        return getMedianPrice();
     }
     /**
     * @notice Fetch the latest medianPrice and whether it is null or not
     **/
     function getResultWithValidity() external view returns (uint256, bool) {
-        return (medianPrice, both(both(medianPrice > 0, updates >= granularity), validityFlag == 1));
+        // Can still fail and revert due to requires errors. 
+        uint256 median = getMedianPrice();
+        return (median, both(median > 0 , validityFlag == 1));
     }
 }
