@@ -10,6 +10,8 @@ import "./geb/MockTreasury.sol";
 
 import "../univ3/UniswapV3Factory.sol";
 import "../univ3/UniswapV3Pool.sol";
+import "../univ3/libraries/LiquidityAmounts.sol";
+
 
 import { UniswapV3ConverterBasicMeanPriceFeedMedianizer } from  "../UniswapV3ConverterBasicMeanPriceFeedMedianizer.sol";
 
@@ -107,6 +109,13 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
 
         // Set converter addresses
         uniswapRAIWETHMedianizer.modifyParameters("converterFeed", address(converterETHPriceFeed));
+
+        // Set target and denomination tokens
+        uniswapRAIWETHMedianizer.modifyParameters("targetToken", address(rai));
+        uniswapRAIWETHMedianizer.modifyParameters("denominationToken", address(weth));
+
+        // Add liquidity to the pool
+        helper_addLiquidity();
     }
 
     // --- Math ---
@@ -130,7 +139,7 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         }
     }
 
-    function helper_getInitialPoolPrice() internal returns(uint160) {
+    function helper_getInitialPoolPrice() internal view returns(uint160) {
         uint160 sqrtPriceX96;
         uint256 scale = 1000000000;
         if (address(token0) == address(rai)) {
@@ -148,5 +157,26 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
     ) internal returns (address _pool) {
         UniswapV3Factory fac = new UniswapV3Factory();
         _pool = fac.createPool(_token0, _token1, uint24(_fee));
+    }
+
+    function helper_addLiquidity() public {
+        uint256 token0Am = 10 ether;
+        uint256 token1Am = 10 ether;
+        int24 low = -887220;
+        int24 upp = 887220;
+        (uint160 sqrtRatioX96, , , , , , ) = raiWETHPool.slot0();
+        uint128 liq = LiquidityAmounts.getLiquidityForAmounts(sqrtRatioX96, TickMath.getSqrtRatioAtTick(low), TickMath.getSqrtRatioAtTick(upp), token0Am, token1Am);
+        raiWETHPool.mint(address(this), low, upp, 1000000000, bytes(""));
+    }
+
+
+    // --- Uniswap Callbacks ---
+    function uniswapV3MintCallback(
+        uint256 amount0Owed,
+        uint256 amount1Owed,
+        bytes calldata data
+    ) external {
+        token0.transfer(msg.sender, amount0Owed);
+        token1.transfer(msg.sender, amount1Owed);
     }
 }

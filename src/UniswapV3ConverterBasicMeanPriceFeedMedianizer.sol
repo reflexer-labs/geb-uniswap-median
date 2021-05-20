@@ -62,14 +62,28 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
 
     // --- Converter Feed Vars ---
     // Latest converter price accumulator snapshot
+    uint256                    public converterPriceCumulative;
     ConverterFeedLike          public converterFeed;
+    ConverterFeedObservation[] public converterFeedObservations;
 
 
     // --- General Vars ---
     // Symbol - you want to change this every deployment
     bytes32 public symbol = "raiusd";
+    /**
+        The number of observations stored for the pair, i.e. how many price observations are stored for the window.
+        as granularity increases from 1, more frequent updates are needed, but moving averages become more precise.
+        averages are computed over intervals with sizes in the range:
+          [windowSize - (windowSize / granularity) * 2, windowSize]
+        e.g. if the window size is 24 hours, and the granularity is 24, the oracle will return the average price for
+          the period:
+          [now - [22 hours, 24 hours], now]
+    **/
+    uint8   public granularity;
     // When the price feed was last updated
     uint256 public lastUpdateTime;
+    // Total number of updates
+    uint256 public updates;
     // The desired amount of time over which the moving average should be computed, e.g. 24 hours
     uint32 public windowSize;
     // This is redundant with granularity and windowSize, but stored for gas savings & informational purposes.
@@ -104,12 +118,18 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
       address uniswapFactory_,
       uint256 defaultAmountIn_,
       uint32 windowSize_,
-      uint256 converterFeedScalingFactor_
+      uint256 converterFeedScalingFactor_,
+      uint8   granularity_
     ) public {
         require(uniswapFactory_ != address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-uniswap-factory");
+        require(granularity_ > 1, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-window-size');
         require(defaultAmountIn_ > 0, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-default-amount-in');
         require(converterFeedScalingFactor_ > 0, 'UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-feed-scaling-factor');
+        require(
+            (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
+            'UniswapConverterBasicAveragePriceFeedMedianizer/window-not-evenly-divisible'
+        );
 
         authorizedAccounts[msg.sender] = 1;
 
@@ -118,7 +138,13 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
         defaultAmountIn                = defaultAmountIn_;
         windowSize                     = windowSize_;
         converterFeedScalingFactor     = converterFeedScalingFactor_;
+        granularity                    = granularity_;
         validityFlag                   = 1;
+
+        // Populate the arrays with empty observations
+        for (uint i = converterFeedObservations.length; i < granularity; i++) {
+            converterFeedObservations.push();
+        }
 
         // Emit events
         emit AddAuthorization(msg.sender);
@@ -132,31 +158,31 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
     * @param data New parameter value
     **/
     function modifyParameters(bytes32 parameter, address data) external isAuthorized {
-        require(data != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-data");
+        require(data != address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-data");
         if (parameter == "converterFeed") {
-          require(data != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-converter-feed");
+          require(data != address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-converter-feed");
           converterFeed = ConverterFeedLike(data);
         }
         else if (parameter == "targetToken") {
-          require(uniswapPool == address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/pair-already-set");
+          require(uniswapPool == address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/pair-already-set");
           targetToken = data;
           if (denominationToken != address(0)) {
             uniswapPool = uniswapV3Factory.getPool(targetToken, denominationToken,3000);
-            require(uniswapPool != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-uniswap-pair");
+            require(uniswapPool != address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-uniswap-pair");
           }
         }
         else if (parameter == "denominationToken") {
-          require(uniswapPool == address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/pair-already-set");
+          require(uniswapPool == address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/pair-already-set");
           denominationToken = data;
           if (targetToken != address(0)) {
             uniswapPool = uniswapV3Factory.getPool(targetToken, denominationToken,3000);
-            require(uniswapPool != address(0), "UniswapConverterBasicAveragePriceFeedMedianizer/null-uniswap-pair");
+            require(uniswapPool != address(0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/null-uniswap-pair");
           }
         }
         else if (parameter == "relayer") {
           relayer = IncreasingRewardRelayerLike(data);
         }
-        else revert("UniswapConverterBasicAveragePriceFeedMedianizer/modify-unrecognized-param");
+        else revert("UniswapV3ConverterBasicMeanPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
     /**
@@ -166,14 +192,14 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
     **/
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
         if (parameter == "validityFlag") {
-          require(either(data == 1, data == 0), "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-data");
+          require(either(data == 1, data == 0), "UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-data");
           validityFlag = data;
         }
         else if (parameter == "defaultAmountIn") {
           require(data > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in");
           defaultAmountIn = data;
         }
-        else revert("UniswapConverterBasicAveragePriceFeedMedianizer/modify-unrecognized-param");
+        else revert("UniswapV3ConverterBasicMeanPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
 
@@ -183,6 +209,32 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
     }
     function both(bool x, bool y) private pure returns (bool z) {
         assembly{ z := and(x, y)}
+    }
+
+    /**
+    * @notice Returns the observations from the oldest epoch (at the beginning of the window) relative to the current time
+    **/
+    function getFirstObservationInWindow()
+      private view returns (ConverterFeedObservation storage firstConverterFeedObservation) {
+        uint8 observationIndex = observationIndexOf(now);
+        // No overflow issue. If observationIndex + 1 overflows, result is still zero
+        uint8 firstObservationIndex   = (observationIndex + 1) % granularity;
+        firstConverterFeedObservation = converterFeedObservations[firstObservationIndex];
+    }
+
+    /**
+    * @notice Returns the index of the observation corresponding to the given timestamp
+    * @param timestamp The timestamp for which we want to get the index for
+    **/
+    function observationIndexOf(uint timestamp) public view returns (uint8 index) {
+        uint epochPeriod = timestamp / periodSize;
+        return uint8(epochPeriod % granularity);
+    }
+    /**
+    * @notice Get the observation list length
+    **/
+    function getObservationListLength() public view returns (uint256) {
+        return converterFeedObservations.length;
     }
 
     // --- Converter Utils ---
@@ -216,13 +268,45 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
           emit FailedConverterFeedUpdate(converterRevertReason);
         }
 
+        // Get the observation for the current period
+        uint8 observationIndex         = observationIndexOf(now);
+        uint256 timeElapsedSinceLatest = subtract(now, converterFeedObservations[observationIndex].timestamp);
+        // We only want to commit updates once per period (i.e. windowSize / granularity)
+        require(timeElapsedSinceLatest > periodSize, "UniswapV3ConverterBasicMeanPriceFeedMedianizer/not-enough-time-elapsed");
+
+        updateObservations(observationIndex);
+
         medianPrice = getMedianPrice();
         lastUpdateTime = now;
+        updates        = addition(updates, 1);
 
         emit UpdateResult(medianPrice, lastUpdateTime);
 
         // Reward caller
         relayer.reimburseCaller(finalFeeReceiver);
+}
+
+/**
+    * @notice Push new observation data in the observation arrays
+    * @param observationIndex Array index of the observations to update
+    **/
+    function updateObservations(uint8 observationIndex) internal {
+        ConverterFeedObservation storage latestConverterFeedObservation = converterFeedObservations[observationIndex];
+
+        // Add converter feed observation
+        (uint256 priceFeedValue, bool hasValidValue) = converterFeed.getResultWithValidity();
+        require(hasValidValue, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-converter-price-feed");
+
+        // Add converter observation
+        latestConverterFeedObservation.timestamp   = now;
+        latestConverterFeedObservation.price       = priceFeedValue;
+
+        converterPriceCumulative = addition(converterPriceCumulative, latestConverterFeedObservation.price);
+
+        if (updates >= granularity) {
+          ConverterFeedObservation storage firstConverterFeedObservation = getFirstObservationInWindow();
+          converterPriceCumulative = subtract(converterPriceCumulative, firstConverterFeedObservation.price);
+        }
     }
 
     function getMedianPrice() internal view returns (uint256 meanPrice) {
@@ -286,11 +370,12 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
     * @notice Fetch the latest medianPrice or revert if is is null
     **/
     function read() external view returns (uint256) {
+        uint256 value = getMedianPrice();
         require(
-          both(medianPrice > 0, validityFlag == 1),
-          "UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-price-feed"
+          both(both(value > 0, updates >= granularity), validityFlag == 1),
+          "UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-price-feed/invalid-price-feed"
         );
-        return getMedianPrice();
+        return value;
     }
     /**
     * @notice Fetch the latest medianPrice and whether it is null or not
@@ -298,6 +383,6 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
     function getResultWithValidity() external view returns (uint256, bool) {
         // Can still fail and revert due to requires errors. 
         uint256 median = getMedianPrice();
-        return (median, both(median > 0 , validityFlag == 1));
+        return (median, both(both(medianPrice > 0, updates >= granularity), validityFlag == 1));
     }
 }
