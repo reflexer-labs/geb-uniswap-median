@@ -19,10 +19,10 @@ abstract contract Hevm {
     function warp(uint256) virtual public;
 }
 
-contract USDC is DSToken {
-    constructor(string memory symbol) public DSToken(symbol, symbol) {
+contract _WETH9 is DSToken {
+    constructor(string memory symbol, uint256 mintAmount) public DSToken(symbol, symbol) {
         decimals = 6;
-        mint(100 ether);
+        mint(mintAmount);
     }
 }
 
@@ -56,14 +56,16 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
     UniswapV3Pool raiUSDCPool;
 
     DSToken rai;
-    USDC usdc;
-    WETH9_ weth;
+    _WETH9 weth;
 
     DSToken token0;
     DSToken token1;
 
     uint256 startTime               = 1577836800;
     uint256 initTokenAmount         = 100000000 ether;
+    uint256 initETHUSDPrice  = 250 * 10 ** 18;
+    uint256 initUSDCUSDPrice = 10 ** 18;
+
     uint256 initETHRAIPairLiquidity = 5 ether; 
     uint256 initRAIETHPairLiquidity = 294.672324375E18;
 
@@ -72,7 +74,17 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
     uint32  uniswapMedianizerWindowSize             = 86400;        // 24 hours
     uint256 uniswapETHRAIMedianizerDefaultAmountIn  = 1 ether;
     uint256 uniswapUSDCRAIMedianizerDefaultAmountIn = 10 ** 12 * 1 ether;
+
+    uint256 baseCallerReward = 15 ether;
+    uint256 maxCallerReward  = 20 ether;
+    uint256 maxRewardDelay   = 42 days;
+    uint256 perSecondCallerRewardIncrease = 1000192559420674483977255848; // 100% over 1 hour
+
+    uint erraticDelay = 3 hours;
+    address alice     = address(0x4567);
     address me;
+
+    uint256 internal constant RAY = 10 ** 27;
 
     function setUp() public {
         me = address(this);
@@ -81,18 +93,26 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         hevm.warp(startTime);
 
         // Deploy Tokens
-        weth = new WETH9_();
+        weth = new _WETH9("WETH", initTokenAmount);
 
         rai = new DSToken("RAI", "RAI");
         rai.mint(initTokenAmount);
 
-        usdc = new USDC("USDC");
+        (token0, token1) = address(rai) < address(weth) ? (DSToken(rai), DSToken(weth)) : (DSToken(weth), DSToken(rai));
 
-        // Create WETH
-        weth.deposit{value: initTokenAmount}();
+        // Create treasury
+        treasury = new MockTreasury(address(rai));
+        rai.transfer(address(treasury), 5000 * baseCallerReward);
 
-        address p = helper_deployV3Pool(address(rai), address(weth), 3000);
-        raiWETHPool = UniswapV3Pool(p);
+        // Setup converter medians
+        converterETHPriceFeed = new ETHMedianizer();
+        converterETHPriceFeed.modifyParameters("medianPrice", initETHUSDPrice);
+
+        // Setup Uniswap
+        uniswapFactory = new UniswapV3Factory();
+
+        address pool = uniswapFactory.createPool(address(token0), address(token1), 3000);
+        raiWETHPool = UniswapV3Pool(pool);
         uint160 initialPrice = helper_getInitialPoolPrice();
         raiWETHPool.initialize(initialPrice);
 
@@ -104,8 +124,27 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
             address(uniswapFactory),
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
-            converterScalingFactor
+            converterScalingFactor,
+            uniswapMedianizerGranularity
         );
+
+        ethRelayer = new IncreasingRewardRelayer(
+            address(uniswapRAIWETHMedianizer),
+            address(treasury),
+            baseCallerReward,
+            maxCallerReward,
+            perSecondCallerRewardIncrease,
+            uniswapRAIWETHMedianizer.periodSize()
+        );
+
+        // set relayer inside oracle contract
+        uniswapRAIWETHMedianizer.modifyParameters("relayer", address(ethRelayer));
+
+        // Set treasury allowance
+        treasury.setTotalAllowance(address(ethRelayer), uint(-1));
+        treasury.setPerBlockAllowance(address(ethRelayer), uint(-1));
+
+        ethRelayer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
 
         // Set converter addresses
         uniswapRAIWETHMedianizer.modifyParameters("converterFeed", address(converterETHPriceFeed));
@@ -113,6 +152,8 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         // Set target and denomination tokens
         uniswapRAIWETHMedianizer.modifyParameters("targetToken", address(rai));
         uniswapRAIWETHMedianizer.modifyParameters("denominationToken", address(weth));
+
+        assertTrue(uniswapRAIWETHMedianizer.uniswapPool() != address(0));
 
         // Add liquidity to the pool
         helper_addLiquidity();
@@ -150,14 +191,6 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         return sqrtPriceX96;
     }
 
-    function helper_deployV3Pool(
-        address _token0,
-        address _token1,
-        uint256 _fee
-    ) internal returns (address _pool) {
-        UniswapV3Factory fac = new UniswapV3Factory();
-        _pool = fac.createPool(_token0, _token1, uint24(_fee));
-    }
 
     function helper_addLiquidity() public {
         uint256 token0Am = 10 ether;
@@ -178,5 +211,80 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
     ) external {
         token0.transfer(msg.sender, amount0Owed);
         token1.transfer(msg.sender, amount1Owed);
+    }
+
+
+    // --- Test Functions --- 
+
+    function test_OOK() public {
+        assertTrue(true);
+    }
+
+    function test_correct_setup_m() public {
+        assertEq(uniswapRAIWETHMedianizer.authorizedAccounts(me), 1);
+
+        assertTrue(address(uniswapRAIWETHMedianizer.converterFeed()) == address(converterETHPriceFeed));
+
+        assertTrue(address(uniswapRAIWETHMedianizer.uniswapV3Factory()) == address(uniswapFactory));
+
+        assertEq(uniswapRAIWETHMedianizer.defaultAmountIn(), uniswapETHRAIMedianizerDefaultAmountIn);
+
+        // assertEq(uniswapRAIWETHMedianizer.windowSize(), uniswapMedianizerWindowSize);
+
+        assertEq(uniswapRAIWETHMedianizer.updates(), 0);
+
+        assertEq(uniswapRAIWETHMedianizer.periodSize(), 3600);
+
+        assertEq(ethRelayer.maxRewardIncreaseDelay(), maxRewardDelay);
+
+        assertEq(uniswapRAIWETHMedianizer.converterFeedScalingFactor(), converterScalingFactor);
+
+        assertEq(uint256(uniswapRAIWETHMedianizer.granularity()), uniswapMedianizerGranularity);
+
+        assertTrue(uniswapRAIWETHMedianizer.targetToken() == address(rai));
+
+        assertTrue(uniswapRAIWETHMedianizer.denominationToken() == address(weth));
+
+        assertTrue(uniswapRAIWETHMedianizer.uniswapPool() == address(raiWETHPool));
+
+        assertTrue(address(ethRelayer.treasury()) == address(treasury));
+
+        assertEq(ethRelayer.baseUpdateCallerReward(), baseCallerReward);
+
+        assertEq(ethRelayer.maxUpdateCallerReward(), maxCallerReward);
+
+        assertEq(ethRelayer.perSecondCallerRewardIncrease(), perSecondCallerRewardIncrease);
+
+        // (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
+        // assertEq(medianPrice, 0);
+        // assertTrue(!isValid);
+
+        // uint256 converterObservationsListLength = uniswapRAIWETHMedianizer.getObservationListLength();
+        // assertTrue(converterObservationsListLength > 0);
+    }
+    function testFail_small_granularity() public {
+        uniswapRAIWETHMedianizer = new UniswapV3ConverterBasicMeanPriceFeedMedianizer(
+            address(converterETHPriceFeed),
+            address(uniswapFactory),
+            uniswapETHRAIMedianizerDefaultAmountIn,
+            uniswapMedianizerWindowSize,
+            converterScalingFactor,
+            1
+        );
+    }
+    function testFail_window_not_evenly_divisible() public {
+        uniswapRAIWETHMedianizer = new UniswapV3ConverterBasicMeanPriceFeedMedianizer(
+            address(converterETHPriceFeed),
+            address(uniswapFactory),
+            uniswapETHRAIMedianizerDefaultAmountIn,
+            uniswapMedianizerWindowSize,
+            converterScalingFactor,
+            23
+        );
+    }
+    function test_change_converter_feed() public {
+        uniswapRAIWETHMedianizer.modifyParameters("converterFeed", address(0x123));
+
+        assertTrue(address(uniswapRAIWETHMedianizer.converterFeed()) == address(0x123));
     }
 }
