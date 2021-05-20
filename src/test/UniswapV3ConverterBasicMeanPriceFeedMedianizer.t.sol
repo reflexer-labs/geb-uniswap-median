@@ -17,6 +17,7 @@ import { UniswapV3ConverterBasicMeanPriceFeedMedianizer } from  "../UniswapV3Con
 
 abstract contract Hevm {
     function warp(uint256) virtual public;
+    function roll(uint256) virtual public;
 }
 
 contract _WETH9 is DSToken {
@@ -157,6 +158,9 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
 
         // Add liquidity to the pool
         helper_addLiquidity();
+
+        // The pool needs some retroactive data
+        simulateUniv3Swaps();
     }
 
     // --- Math ---
@@ -191,7 +195,6 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         return sqrtPriceX96;
     }
 
-
     function helper_addLiquidity() public {
         uint256 token0Am = 10 ether;
         uint256 token1Am = 10 ether;
@@ -200,6 +203,30 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         (uint160 sqrtRatioX96, , , , , , ) = raiWETHPool.slot0();
         uint128 liq = LiquidityAmounts.getLiquidityForAmounts(sqrtRatioX96, TickMath.getSqrtRatioAtTick(low), TickMath.getSqrtRatioAtTick(upp), token0Am, token1Am);
         raiWETHPool.mint(address(this), low, upp, 1000000000, bytes(""));
+    }
+
+    function helper_do_swap() public {
+        (uint160 currentPrice, , , , , , ) = raiWETHPool.slot0();
+        uint160 sqrtLimitPrice = currentPrice + 1 ether ;
+        raiWETHPool.swap(address(this), false, 1 ether, sqrtLimitPrice, bytes(""));
+    }
+
+    function simulateUniv3Swaps() public {
+        for (uint i = 0; i < 30; i++) {
+          helper_do_swap();
+          hevm.roll(1);
+          hevm.warp(150);
+        }
+    }
+
+    function simulateMedianizerAndConverter() public {    
+        hevm.warp(now + 10);
+        for (uint i = 0; i < uint(uniswapMedianizerGranularity) + 2; i++) {
+          helper_do_swap();
+          uniswapRAIWETHMedianizer.updateResult(me);
+          hevm.roll(1);
+          hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
+        }
     }
 
 
@@ -213,12 +240,17 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         token1.transfer(msg.sender, amount1Owed);
     }
 
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        if (amount1Delta > 0) token1.transfer(msg.sender, uint256(amount1Delta));
+        if (amount0Delta > 0) token0.transfer(msg.sender, uint256(amount0Delta));
+    }
+
 
     // --- Test Functions --- 
-
-    function test_OOK() public {
-        assertTrue(true);
-    }
 
     function test_correct_setup_m() public {
         assertEq(uniswapRAIWETHMedianizer.authorizedAccounts(me), 1);
@@ -287,4 +319,34 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
 
         assertTrue(address(uniswapRAIWETHMedianizer.converterFeed()) == address(0x123));
     }
+
+    function testFail_read_raieth_before_passing_granularity() public {
+        hevm.warp(now + 3599);
+        assertEq(rai.balanceOf(alice), 0);
+
+        // RAI/WETH
+        uniswapRAIWETHMedianizer.updateResult(alice);
+
+        uint medianPrice = uniswapRAIWETHMedianizer.read();
+    }
+
+    function test_get_result_before_passing_granularity() public {
+        hevm.warp(now + 3599);
+        assertEq(rai.balanceOf(alice), 0);
+
+        // RAI/WETH
+        uniswapRAIWETHMedianizer.updateResult(alice);
+        (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
+        assertTrue(!isValid);
+    }
+
+    function test_update_resultP() public {
+        // simulateMedianizerAndConverter();
+        (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
+        emit log_named_uint("medianPrice", medianPrice);
+        assertTrue(false);
+        
+    }
+
+
 }
