@@ -246,10 +246,13 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
     function converterComputeAmountOut(
         uint256 amountIn
     ) public view returns (uint256 amountOut) {
-        (uint256 priceFeedValue, bool hasValidValue) = converterFeed.getResultWithValidity();
-        require(hasValidValue, "UniswapV3ConverterBasicMeanPriceFeedMedianizer/invalid-converter-price-feed");
-        amountOut= multiply(amountIn, priceFeedValue) / converterFeedScalingFactor;
+        if(updates >= granularity) {
+          uint256 priceAverage = converterPriceCumulative / uint(granularity);
+          amountOut            = multiply(amountIn, priceAverage) / converterFeedScalingFactor;
+        } 
     }
+
+    event D(uint256 k);
 
     // --- Core Logic ---
     /**
@@ -271,6 +274,7 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizer is GebMath {
         // Get the observation for the current period
         uint8 observationIndex         = observationIndexOf(now);
         uint256 timeElapsedSinceLatest = subtract(now, converterFeedObservations[observationIndex].timestamp);
+
         // We only want to commit updates once per period (i.e. windowSize / granularity)
         require(timeElapsedSinceLatest > periodSize, "UniswapV3ConverterBasicMeanPriceFeedMedianizer/not-enough-time-elapsed");
 
