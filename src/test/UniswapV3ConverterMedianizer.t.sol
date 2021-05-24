@@ -13,7 +13,7 @@ import "../univ3/UniswapV3Pool.sol";
 import "../univ3/libraries/LiquidityAmounts.sol";
 
 
-import { UniswapV3ConverterBasicMeanPriceFeedMedianizer } from  "../UniswapV3ConverterBasicMeanPriceFeedMedianizer.sol";
+import { UniswapV3ConverterMedianizer } from  "../UniswapV3ConverterMedianizer.sol";
 
 abstract contract Hevm {
     function warp(uint256) virtual public;
@@ -38,10 +38,10 @@ contract USDCMedianizer is MockMedianizer {
     }
 }
 
-contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
+contract UniswapV3ConverterMedianizerTest is DSTest {
     Hevm hevm;
 
-    UniswapV3ConverterBasicMeanPriceFeedMedianizer uniswapRAIWETHMedianizer;
+    UniswapV3ConverterMedianizer uniswapRAIWETHMedianizer;
 
     MockTreasury treasury;
 
@@ -122,7 +122,7 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         //Increase the number of oracle observations
         raiWETHPool.increaseObservationCardinalityNext(8000);
 
-        uniswapRAIWETHMedianizer = new UniswapV3ConverterBasicMeanPriceFeedMedianizer(
+        uniswapRAIWETHMedianizer = new UniswapV3ConverterMedianizer(
             address(0x1),
             address(uniswapFactory),
             uniswapETHRAIMedianizerDefaultAmountIn,
@@ -332,7 +332,7 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         // assertTrue(converterObservationsListLength > 0);
     }
     function testFail_v3_small_granularity() public {
-        uniswapRAIWETHMedianizer = new UniswapV3ConverterBasicMeanPriceFeedMedianizer(
+        uniswapRAIWETHMedianizer = new UniswapV3ConverterMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
             uniswapETHRAIMedianizerDefaultAmountIn,
@@ -342,7 +342,7 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         );
     }
     function testFail_v3_window_not_evenly_divisible() public {
-        uniswapRAIWETHMedianizer = new UniswapV3ConverterBasicMeanPriceFeedMedianizer(
+        uniswapRAIWETHMedianizer = new UniswapV3ConverterMedianizer(
             address(converterETHPriceFeed),
             address(uniswapFactory),
             uniswapETHRAIMedianizerDefaultAmountIn,
@@ -515,6 +515,10 @@ contract UniswapV3ConverterBasicMeanPriceFeedMedianizerTest is DSTest {
         // RAI/WETH
         uint median = uniswapRAIWETHMedianizer.read();
         assertTrue(median > 0);
+    }
+
+    function correctly_tracks_upward_price_movement() public {
+        
     }
 
 }
