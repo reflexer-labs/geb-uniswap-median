@@ -358,9 +358,6 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is GebMath, UniswapV2Library
           emit FailedUniswapPairSync(uniswapRevertReason);
         }
 
-        // Get the last update time used when calculating the reward
-        uint256 rewardCalculationLastUpdateTime = (uniswapObservations.length == 0) ? 0 : lastUpdateTime;
-
         // Get Uniswap cumulative prices
         (uint uniswapPrice0Cumulative, uint uniswapPrice1Cumulative,) = currentCumulativePrices(uniswapPair);
 
