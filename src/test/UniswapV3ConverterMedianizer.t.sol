@@ -74,8 +74,8 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
     uint8   uniswapMedianizerGranularity            = 24;           // 1 hour
     uint256 converterScalingFactor                  = 1 ether;
     uint32  uniswapMedianizerWindowSize             = 86400;        // 24 hours
+    uint256 maxWindowSize                           = 72 hours;
     uint256 uniswapETHRAIMedianizerDefaultAmountIn  = 1 ether;
-    uint256 uniswapUSDCRAIMedianizerDefaultAmountIn = 10 ** 12 * 1 ether;
 
     uint256 baseCallerReward = 15 ether;
     uint256 maxCallerReward  = 20 ether;
@@ -92,7 +92,7 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
         me = address(this);
 
         hevm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-        hevm.warp(startTime);
+        // hevm.warp(startTime);
 
         // Deploy Tokens
         weth = new _WETH9("WETH", initTokenAmount);
@@ -128,6 +128,7 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
+            maxWindowSize,
             uniswapMedianizerGranularity
         );
 
@@ -198,23 +199,23 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
     }
 
     function helper_addLiquidity() public {
-        uint256 token0Am = 10 ether;
-        uint256 token1Am = 10 ether;
-        int24 low = -887220;
-        int24 upp = 887220;
+        uint256 token0Am = 10000 ether;
+        uint256 token1Am = 10000 ether;
+        int24 low = -120000;
+        int24 upp = 120000;
         (uint160 sqrtRatioX96, , , , , , ) = raiWETHPool.slot0();
         uint128 liq = LiquidityAmounts.getLiquidityForAmounts(sqrtRatioX96, TickMath.getSqrtRatioAtTick(low), TickMath.getSqrtRatioAtTick(upp), token0Am, token1Am);
-        raiWETHPool.mint(address(this), low, upp, 1000000000, bytes(""));
+        raiWETHPool.mint(address(this), low, upp, liq, bytes(""));
     }
 
-    function helper_do_swap(bool zeroForOne) public {
+    function helper_do_swap(bool zeroForOne, uint256 size) public {
         (uint160 currentPrice, , , , , , ) = raiWETHPool.slot0();
         if(zeroForOne) {
-            uint160 sqrtLimitPrice = currentPrice - 1000 ;
-            raiWETHPool.swap(address(this), true, 1000, sqrtLimitPrice, bytes(""));
+            uint160 sqrtLimitPrice = currentPrice - uint160(size);
+            raiWETHPool.swap(address(this), true, int56(size), sqrtLimitPrice, bytes(""));
         } else {
-            uint160 sqrtLimitPrice = currentPrice + 1000 ;
-            raiWETHPool.swap(address(this), false, 1000, sqrtLimitPrice, bytes(""));
+            uint160 sqrtLimitPrice = currentPrice + uint160(size);
+            raiWETHPool.swap(address(this), false, int56(size), sqrtLimitPrice, bytes(""));
         }
     }
 
@@ -237,19 +238,18 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
     }
 
     function simulateUniv3Swaps() public {
-        for (uint i = 0; i < 30; i++) {
-          helper_do_swap(i % 2== 0);
-          hevm.roll(1);
-          hevm.warp(150);
-        }
+        helper_do_swap(true, 1000);
+        hevm.warp(now + uniswapMedianizerWindowSize);
+        converterETHPriceFeed.modifyParameters("medianPrice", initETHUSDPrice);
     }
 
     function simulateMedianizerAndConverter() public {    
         hevm.warp(now + 3600);
+        converterETHPriceFeed.modifyParameters("medianPrice", initETHUSDPrice);
         for (uint i = 0; i < uint(uniswapMedianizerGranularity) + 2; i++) {
-          helper_do_swap(i % 2== 0);
+          helper_do_swap(i % 2== 0, 1000);
           uniswapRAIWETHMedianizer.updateResult(alice);
-          hevm.roll(1);
+          hevm.roll(block.number + 1);
           hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
         }
     }
@@ -260,9 +260,9 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
         for (uint i = 0; i < uint(uniswapMedianizerGranularity) * 2; i++) {
           chosenDelay = (i % 2 == 0) ? erraticDelay : uniswapRAIWETHMedianizer.periodSize();
           hevm.warp(now + chosenDelay);
-          hevm.roll(1);
+          hevm.roll(block.number + 1);
           uniswapRAIWETHMedianizer.updateResult(address(alice));
-          helper_do_swap(i % 2== 0);
+          helper_do_swap(i % 2== 0, 1000);
         }
     }
 
@@ -324,12 +324,9 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
 
         assertEq(ethRelayer.perSecondCallerRewardIncrease(), perSecondCallerRewardIncrease);
 
-        // (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
-        // assertEq(medianPrice, 0);
-        // assertTrue(!isValid);
-
-        // uint256 converterObservationsListLength = uniswapRAIWETHMedianizer.getObservationListLength();
-        // assertTrue(converterObservationsListLength > 0);
+        (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
+        assertEq(medianPrice, 0);
+        assertTrue(!isValid);
     }
     function testFail_v3_small_granularity() public {
         uniswapRAIWETHMedianizer = new UniswapV3ConverterMedianizer(
@@ -338,6 +335,7 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
+            maxWindowSize,
             1
         );
     }
@@ -348,6 +346,7 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
             uniswapETHRAIMedianizerDefaultAmountIn,
             uniswapMedianizerWindowSize,
             converterScalingFactor,
+            maxWindowSize,
             23
         );
     }
@@ -508,14 +507,25 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
     function test_v3_read_after_passing_granularity() public {
         simulateMedianizerAndConverter();
 
-
         // RAI/WETH
         uint median = uniswapRAIWETHMedianizer.read();
         assertTrue(median > 0);
     }
 
-    function correctly_tracks_upward_price_movement() public {
-        
-    }
+    function test_v3_tracks_downward_price_movement() public {
+        simulateMedianizerAndConverter();
+        // Increase 
+        hevm.warp(now + 3600);
+        for (uint i = 0; i < uint(uniswapMedianizerGranularity) + 2; i++) {
+          helper_do_swap(false, 100 ether);
+          uniswapRAIWETHMedianizer.updateResult(alice);
+          hevm.roll(block.number + 1);
+          hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
+        }
 
+
+        uint256 medianPrice = uniswapRAIWETHMedianizer.read();
+        emit log_named_uint("medianPrice", medianPrice);
+        assertTrue(medianPrice < initialPoolPrice);
+    }
 }

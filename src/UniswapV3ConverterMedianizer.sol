@@ -310,9 +310,9 @@ contract UniswapV3ConverterMedianizer is GebMath {
 
     function getMedianPrice() private view returns (uint256 meanPrice) {
         require(uniswapPool != address(0), "UniswapV3ConverterMedianizer/null-uniswap-pool");
+        uint256 timeElapsed      = getTimeElapsedSinceFirstObservationInWindow();
         int24 medianTick         = getUniswapMeanTick(windowSize);
         uint256 uniswapAmountOut = getQuoteAtTick(medianTick, uint128(defaultAmountIn), denominationToken, targetToken);
-        uint256 timeElapsed      = getTimeElapsedSinceFirstObservationInWindow();
         meanPrice               = converterComputeAmountOut(timeElapsed, uniswapAmountOut);
     }
 
