@@ -46,7 +46,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
     // --- Observations ---
     struct ConverterFeedObservation {
         uint timestamp;
-        uint price;
+        uint timeAdjustedPrice;
     }
 
     // --- Uniswap Vars ---
@@ -214,24 +214,10 @@ contract UniswapV3ConverterMedianizer is GebMath {
     /**
     * @notice Returns the observations from the oldest epoch (at the beginning of the window) relative to the current time
     **/
-    function getFirstObservationInWindow()
-      private view returns (ConverterFeedObservation storage firstConverterFeedObservation) {
+    function getTimeElapsedSinceFirstObservationInWindow()
+      private view returns (uint256 time) {
         uint8 firtObservationIndex = uint8(addition(updates, 1) % granularity);
-        firstConverterFeedObservation = converterFeedObservations[firtObservationIndex];
-    }
-
-    /**
-    * @notice Returns the index of the observation corresponding to the given timestamp
-    * @param timestamp The timestamp for which we want to get the index for
-    **/
-    function observationIndexOf(uint timestamp) public view returns (uint8 index) {
-        return uint8(updates % granularity);
-    }
-    /**
-    * @notice Get the observation list length
-    **/
-    function getObservationListLength() public view returns (uint256) {
-        return converterFeedObservations.length;
+        time = subtract(now, converterFeedObservations[firtObservationIndex].timestamp);
     }
 
     // --- Converter Utils ---
@@ -241,11 +227,13 @@ contract UniswapV3ConverterMedianizer is GebMath {
     * @param amountIn Amount of denomination tokens to calculate the price for
     **/
     function converterComputeAmountOut(
+        uint256 timeElapsed,
         uint256 amountIn
     ) public view returns (uint256 amountOut) {
+        require(timeElapsed > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/null-time-elapsed");
         if(updates >= granularity) {
-          uint256 priceAverage = converterPriceCumulative / uint(granularity);
-          amountOut            = multiply(amountIn, priceAverage) / converterFeedScalingFactor;
+          uint256 priceAverage = converterPriceCumulative / timeElapsed;
+          amountOut           = multiply(amountIn, priceAverage) / converterFeedScalingFactor;
         } 
     }
 
@@ -266,19 +254,21 @@ contract UniswapV3ConverterMedianizer is GebMath {
           emit FailedConverterFeedUpdate(converterRevertReason);
         }
 
-        // Get the observation for the current period
-        uint8 observationIndex         = uint8(updates % granularity);
-        uint256 timeElapsedSinceLatest = subtract(now, converterFeedObservations[observationIndex].timestamp);
+        // If it's the first reading, we have to set time elapsed manually
+        uint256 timeSinceLast = updates == 0 ? periodSize :subtract(now, lastUpdateTime);
 
         // We only want to commit updates once per period (i.e. windowSize / granularity)
-        require(timeElapsedSinceLatest > periodSize, "UniswapV3ConverterMedianizer/not-enough-time-elapsed");
+        require(timeSinceLast>= periodSize, "UniswapV3ConverterMedianizer/not-enough-time-elapsed");
 
-        updateObservations(observationIndex);
+        // Increase updates and get the index to write to
+        updates = addition(updates, 1);
+        uint8 observationIndex = uint8(updates % granularity);
+        
+        updateObservations(observationIndex, timeSinceLast);
 
-        medianPrice = getMedianPrice();
-        lastUpdateTime = now;
-        updates        = addition(updates, 1);
-
+        medianPrice     = getMedianPrice();
+        lastUpdateTime  = now;
+        
         emit UpdateResult(medianPrice, lastUpdateTime);
 
         // Reward caller
@@ -289,32 +279,31 @@ contract UniswapV3ConverterMedianizer is GebMath {
     * @notice Push new observation data in the observation arrays
     * @param observationIndex Array index of the observations to update
     **/
-    function updateObservations(uint8 observationIndex) internal {
+    function updateObservations(uint8 observationIndex, uint256 timeSinceLastObservation) internal {
         ConverterFeedObservation storage latestConverterFeedObservation = converterFeedObservations[observationIndex];
 
-
+        // this value will be overwitten, so we need to first decrease the running amount
+        if (updates >= granularity) {
+            converterPriceCumulative = subtract(converterPriceCumulative, latestConverterFeedObservation.timeAdjustedPrice);
+        }
 
         // Add converter feed observation
         (uint256 priceFeedValue, bool hasValidValue) = converterFeed.getResultWithValidity();
         require(hasValidValue, "UniswapConverterBasicAveragePriceFeedMedianizer/invalid-converter-price-feed");
 
         // Add converter observation
-        latestConverterFeedObservation.timestamp   = now;
-        latestConverterFeedObservation.price       = priceFeedValue;
+        latestConverterFeedObservation.timestamp          = now;
+        latestConverterFeedObservation.timeAdjustedPrice  = multiply(priceFeedValue, timeSinceLastObservation);
 
-        converterPriceCumulative = addition(converterPriceCumulative, latestConverterFeedObservation.price);
-
-        if (updates >= granularity) {
-          ConverterFeedObservation storage firstConverterFeedObservation = getFirstObservationInWindow();
-          converterPriceCumulative = subtract(converterPriceCumulative, firstConverterFeedObservation.price);
-        }
+        converterPriceCumulative = addition(converterPriceCumulative, latestConverterFeedObservation.timeAdjustedPrice);
     }
 
     function getMedianPrice() internal view returns (uint256 meanPrice) {
         require(uniswapPool != address(0), "UniswapV3ConverterMedianizer/null-uniswap-pool");
         int24 medianTick         = getUniswapMeanTick(windowSize);
         uint256 uniswapAmountOut = getQuoteAtTick(medianTick, uint128(defaultAmountIn), denominationToken, targetToken);
-        meanPrice               = converterComputeAmountOut(uniswapAmountOut);
+        uint256 timeElapsed      = getTimeElapsedSinceFirstObservationInWindow();
+        meanPrice               = converterComputeAmountOut(timeElapsed, uniswapAmountOut);
     }
 
     /// @notice Fetches time-weighted average tick using Uniswap V3 oracle

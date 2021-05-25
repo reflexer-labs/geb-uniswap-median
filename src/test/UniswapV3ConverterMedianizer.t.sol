@@ -461,7 +461,6 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         uint256 converterPriceCumulative = uniswapRAIWETHMedianizer.converterPriceCumulative();
 
-        assertEq(uint256(uniswapRAIWETHMedianizer.observationIndexOf(now)), 1);
         assertEq(converterPriceCumulative, initETHUSDPrice);
         assertEq(medianPrice, 0);
         assertTrue(!isValid);
@@ -471,8 +470,6 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
 
     function test_v3_simulate_close_prices() public {
         simulateMedianizerAndConverter();
-
-        assertEq(uniswapRAIWETHMedianizer.converterComputeAmountOut(10**18), initETHUSDPrice);
 
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
