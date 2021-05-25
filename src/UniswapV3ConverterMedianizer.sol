@@ -86,6 +86,8 @@ contract UniswapV3ConverterMedianizer is GebMath {
     uint256 public updates;
     // The desired amount of time over which the moving average should be computed, e.g. 24 hours
     uint32 public windowSize;
+    // Maximum window size used to determine if the median is 'valid' (close to the real one) or not
+    uint256 public maxWindowSize;
     // This is redundant with granularity and windowSize, but stored for gas savings & informational purposes.
     uint256 public periodSize;
     // This is the denominator for computing
@@ -119,11 +121,13 @@ contract UniswapV3ConverterMedianizer is GebMath {
       uint256 defaultAmountIn_,
       uint32 windowSize_,
       uint256 converterFeedScalingFactor_,
+      uint256 maxWindowSize_,
       uint8   granularity_
     ) public {
         require(uniswapFactory_ != address(0), "UniswapV3ConverterMedianizer/null-uniswap-factory");
         require(granularity_ > 1, 'UniswapV3ConverterMedianizer/null-granularity');
         require(windowSize_ > 0, 'UniswapV3ConverterMedianizer/null-window-size');
+        require(maxWindowSize_ > windowSize_, 'UniswapV3ConverterMedianizer/invalid-max-window-size');
         require(defaultAmountIn_ > 0, 'UniswapV3ConverterMedianizer/invalid-default-amount-in');
         require(converterFeedScalingFactor_ > 0, 'UniswapV3ConverterMedianizer/null-feed-scaling-factor');
         require(
@@ -137,6 +141,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
         uniswapV3Factory               = IUniswapV3Factory(uniswapFactory_);
         defaultAmountIn                = defaultAmountIn_;
         windowSize                     = windowSize_;
+        maxWindowSize                  = maxWindowSize_;
         converterFeedScalingFactor     = converterFeedScalingFactor_;
         granularity                    = granularity_;
         validityFlag                   = 1;
@@ -149,6 +154,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
         // Emit events
         emit AddAuthorization(msg.sender);
         emit ModifyParameters(bytes32("converterFeed"), converterFeed_);
+        emit ModifyParameters(bytes32("maxWindowSize"), maxWindowSize_);
     }
 
     // --- Administration ---
@@ -196,8 +202,12 @@ contract UniswapV3ConverterMedianizer is GebMath {
           validityFlag = data;
         }
         else if (parameter == "defaultAmountIn") {
-          require(data > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/invalid-default-amount-in");
+          require(data > 0, "UniswapV3ConverterMedianizer/invalid-default-amount-in");
           defaultAmountIn = data;
+        }
+        else if (parameter == "maxWindowSize") {
+          require(data > windowSize, 'UniswapV3ConverterMedianizer/invalid-max-window-size');
+          maxWindowSize = data;
         }
         else revert("UniswapV3ConverterMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
@@ -298,7 +308,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
         converterPriceCumulative = addition(converterPriceCumulative, latestConverterFeedObservation.timeAdjustedPrice);
     }
 
-    function getMedianPrice() internal view returns (uint256 meanPrice) {
+    function getMedianPrice() private view returns (uint256 meanPrice) {
         require(uniswapPool != address(0), "UniswapV3ConverterMedianizer/null-uniswap-pool");
         int24 medianTick         = getUniswapMeanTick(windowSize);
         uint256 uniswapAmountOut = getQuoteAtTick(medianTick, uint128(defaultAmountIn), denominationToken, targetToken);
@@ -362,8 +372,8 @@ contract UniswapV3ConverterMedianizer is GebMath {
     function read() external view returns (uint256) {
         uint256 value = getMedianPrice();
         require(
-          both(both(value > 0, updates >= granularity), validityFlag == 1),
-          "UniswapV3ConverterMedianizer/invalid-price-feed/invalid-price-feed"
+          both(both(both(value > 0, updates >= granularity), validityFlag == 1),getTimeElapsedSinceFirstObservationInWindow()<= maxWindowSize),
+          "UniswapV3ConverterMedianizer/invalid-price-feed"
         );
         return value;
     }
@@ -371,8 +381,6 @@ contract UniswapV3ConverterMedianizer is GebMath {
     * @notice Fetch the latest medianPrice and whether it is null or not
     **/
     function getResultWithValidity() external view returns (uint256, bool) {
-        // Can still fail and revert due to requires errors. 
-        uint256 median = getMedianPrice();
-        return (median, both(both(medianPrice > 0, updates >= granularity), validityFlag == 1));
+        return (medianPrice, both(both(medianPrice > 0, updates >= granularity), validityFlag == 1));
     }
 }
