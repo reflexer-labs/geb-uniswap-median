@@ -233,11 +233,11 @@ contract UniswapV3ConverterMedianizer is GebMath {
     function converterComputeAmountOut(
         uint256 timeElapsed,
         uint256 amountIn
-    ) public view returns (uint256 amountOut) {
+    ) public returns (uint256 amountOut) {
         require(timeElapsed > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/null-time-elapsed");
         if(updates >= granularity) {
           uint256 priceAverage = converterPriceCumulative / timeElapsed;
-          amountOut           = multiply(amountIn, priceAverage) / converterFeedScalingFactor;
+          amountOut           = multiply(priceAverage,converterFeedScalingFactor) / amountIn;
         } 
     }
 
@@ -309,9 +309,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
         require(targetToken != address(0), "UniswapV3ConverterMedianizer/null-target-token");
         uint256 timeElapsed      = getTimeElapsedSinceFirstObservationInWindow();
         int24 medianTick         = getUniswapMeanTick(windowSize);
-        emit Tick(medianTick);
         uint256 uniswapAmountOut = getQuoteAtTick(medianTick, uint128(defaultAmountIn), denominationToken, targetToken);
-        emit Price(uniswapAmountOut);
         meanPrice               = converterComputeAmountOut(timeElapsed, uniswapAmountOut);
     }
 

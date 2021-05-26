@@ -57,8 +57,7 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
 
     uint256 startTime               = 1577836800;
     uint256 initTokenAmount         = 100000000 ether;
-    uint256 initETHUSDPrice  = 250 * 10 ** 18;
-    uint256 initUSDCUSDPrice = 10 ** 18;
+    uint256 initETHUSDPrice  = 2500 * 10 ** 18;
     uint256 initialPoolPrice;
 
     uint256 initETHRAIPairLiquidity = 5 ether; 
@@ -108,8 +107,8 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
 
         address pool = uniswapFactory.createPool(address(token0), address(token1), 3000);
         raiWETHPool = UniswapV3Pool(pool);
-        uint160 initialPrice = helper_getInitialPoolPrice();
-        initialPoolPrice = helper_get_price_from_ratio(initialPrice) * initETHUSDPrice / 1 ether;
+        uint160 initialPrice = 2744777325701582248892809798; //close to U$3.00
+        initialPoolPrice = helper_get_price_from_ratio(initialPrice) * 1 ether / initETHUSDPrice ;
         raiWETHPool.initialize(initialPrice);
 
         //Increase the number of oracle observations
@@ -180,17 +179,6 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
         }
     }
 
-    function helper_getInitialPoolPrice() internal view returns(uint160) {
-        uint160 sqrtPriceX96;
-        uint256 scale = 1000000000;
-        if (address(token1) == address(rai)) {
-            sqrtPriceX96 = uint160(sqrt((divide(multiply(initETHRAIPairLiquidity,scale),initRAIETHPairLiquidity) << 192) / scale));
-        } else {
-            sqrtPriceX96 = uint160(sqrt((divide(multiply(initRAIETHPairLiquidity,scale),initETHRAIPairLiquidity) << 192) / scale));
-        }
-        return sqrtPriceX96;
-    }
-
     function helper_addLiquidity() public {
         uint256 token0Am = 10000 ether;
         uint256 token1Am = 10000 ether;
@@ -212,7 +200,7 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
         }
     }
 
-    function helper_get_price_from_ratio(uint160 sqrtRatioX96) public returns(uint256 quoteAmount){
+    function helper_get_price_from_ratio(uint160 sqrtRatioX96) public view returns(uint256 quoteAmount){
         uint128 maxUint = uint128(0-1);
         uint256 baseAmount = 1 ether;
 
