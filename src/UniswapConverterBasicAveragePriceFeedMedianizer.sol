@@ -353,8 +353,11 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is GebMath, UniswapV2Li
 
         emit UpdateResult(medianPrice, lastUpdateTime);
 
-        // Reward caller
-        relayer.reimburseCaller(finalFeeReceiver);
+        // Try to reward the caller
+        try relayer.reimburseCaller(finalFeeReceiver) {
+        } catch (bytes memory revertReason) {
+          emit FailedReimburseCaller(revertReason);
+        }
     }
     /**
     * @notice Push new observation data in the observation arrays
