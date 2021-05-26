@@ -120,6 +120,7 @@ contract UniswapConverterBasicAveragePriceFeedMedianizer is GebMath, UniswapV2Li
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
     event FailedUniswapPairSync(bytes reason);
+    event FailedReimburseCaller(bytes revertReason);
 
     constructor(
       address converterFeed_,
