@@ -117,6 +117,7 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is GebMath, UniswapV2Library
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
     event FailedConverterFeedUpdate(bytes reason);
     event FailedUniswapPairSync(bytes reason);
+    event FailedReimburseCaller(bytes revertReason);
 
     constructor(
       address converterFeed_,
@@ -371,8 +372,11 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizer is GebMath, UniswapV2Library
 
         emit UpdateResult(medianPrice, lastUpdateTime);
 
-        // Reward caller
-        relayer.reimburseCaller(finalFeeReceiver);
+        // Try to reward the caller
+        try relayer.reimburseCaller(finalFeeReceiver) {
+        } catch (bytes memory revertReason) {
+          emit FailedReimburseCaller(revertReason);
+        }
     }
     /**
     * @notice Push new observation data in the observation arrays
