@@ -2,11 +2,11 @@ pragma solidity 0.6.7;
 
 import "geb-treasury-reimbursement/math/GebMath.sol";
 
-import './uni/interfaces/IUniswapV2Factory.sol';
-import './uni/interfaces/IUniswapV2Pair.sol';
+import './univ2/interfaces/IUniswapV2Factory.sol';
+import './univ2/interfaces/IUniswapV2Pair.sol';
 
-import './uni/libs/UniswapV2Library.sol';
-import './uni/libs/UniswapV2OracleLibrary.sol';
+import './univ2/libs/UniswapV2Library.sol';
+import './univ2/libs/UniswapV2OracleLibrary.sol';
 
 abstract contract ConverterFeedLike {
     function getResultWithValidity() virtual external view returns (uint256,bool);

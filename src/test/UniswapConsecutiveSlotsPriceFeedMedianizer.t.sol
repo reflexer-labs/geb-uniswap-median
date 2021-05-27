@@ -8,9 +8,9 @@ import "geb-treasury-reimbursement/relayer/IncreasingRewardRelayer.sol";
 import "./orcl/MockMedianizer.sol";
 import "./geb/MockTreasury.sol";
 
-import "../uni/UniswapV2Factory.sol";
-import "../uni/UniswapV2Pair.sol";
-import "../uni/UniswapV2Router02.sol";
+import "../univ2/UniswapV2Factory.sol";
+import "../univ2/UniswapV2Pair.sol";
+import "../univ2/UniswapV2Router02.sol";
 
 import { UniswapConsecutiveSlotsPriceFeedMedianizer } from  "../UniswapConsecutiveSlotsPriceFeedMedianizer.sol";
 
