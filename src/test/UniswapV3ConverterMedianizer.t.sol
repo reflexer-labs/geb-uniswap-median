@@ -83,12 +83,11 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
         me = address(this);
 
         hevm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-        // hevm.warp(startTime);
+        hevm.warp(startTime);
 
         // Deploy Tokens
-        weth = new _WETH9("WETH", initTokenAmount);
-
         rai = new DSToken("RAI", "RAI");
+        weth = new _WETH9("WETH", initTokenAmount);
         rai.mint(initTokenAmount);
 
         (token0, token1) = address(rai) < address(weth) ? (DSToken(rai), DSToken(weth)) : (DSToken(weth), DSToken(rai));
@@ -106,10 +105,20 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
 
         address pool = uniswapFactory.createPool(address(token0), address(token1), 3000);
         raiWETHPool = UniswapV3Pool(pool);
+        log_named_address("to1",raiWETHPool.token1());
+        log_named_address("rai",address(rai));
         uint160 initialPrice = 2376844875427930127806318510080; //close to U$3.00
         log_named_uint("ratio", helper_get_price_from_ratio(initialPrice));
-        initialPoolPrice = initETHUSDPrice * 1 ether / helper_get_price_from_ratio(initialPrice);
+        initialPoolPrice = initETHUSDPrice *  helper_get_price_from_ratio(initialPrice) / 1 ether;
         raiWETHPool.initialize(initialPrice);
+        (uint160 price,int24 tick,,,,,) = raiWETHPool.slot0();
+        log_named_uint("price", uint256(price));
+        if(tick> 0) {
+            log_named_uint("pos", uint256(tick));
+        } else {
+            log_named_uint("neg", uint256(tick * -1));
+        }
+
 
         //Increase the number of oracle observations
         raiWETHPool.increaseObservationCardinalityNext(3000);
