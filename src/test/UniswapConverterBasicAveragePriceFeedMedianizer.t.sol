@@ -488,8 +488,8 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initUSDCUSDPrice);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
-        assertEq(price1Cumulative, 79270578062783154942013374);
+        assertEq(price1Cumulative, 4405251389407554133682521520241189416313059876349);
+        assertEq(price0Cumulative, 79270578062783154942013374);
         assertEq(rai.balanceOf(alice), 2 * baseCallerReward);
         assertEq(uniswapRAIUSDCMedianizer.updates(), 1);
     }
@@ -625,8 +625,8 @@ contract UniswapConverterBasicAveragePriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initUSDCUSDPrice);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
-        assertEq(price1Cumulative, 79270578062783154942013374);
+        assertEq(price1Cumulative, 4405251389407554133682521520241189416313059876349);
+        assertEq(price0Cumulative, 79270578062783154942013374);
     }
     function test_simulate_same_prices() public {
         simulateBothOraclesSamePrices();

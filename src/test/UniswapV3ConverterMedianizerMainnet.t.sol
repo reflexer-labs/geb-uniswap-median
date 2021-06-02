@@ -132,28 +132,28 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
 
     //Uncomment this to run tests agains a mainnet rpc url
 
-    function test_m_invalid_without_converter_data() public {
-        (, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
-        assertTrue(!isValid);
-    }
+    // function test_m_invalid_without_converter_data() public {
+    //     (, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
+    //     assertTrue(!isValid);
+    // }
 
-    function testFail_m_invalid_read() public {
-        uniswapRAIWETHMedianizer.read();
-    }
+    // function testFail_m_invalid_read() public {
+    //     uniswapRAIWETHMedianizer.read();
+    // }
 
-    function test_m_read_from_mainnetData() public {
-        populateETHData();
+    // function test_m_read_from_mainnetData() public {
+    //     populateETHData();
 
-        uint256 ethusd = converterETHPriceFeed.read();
-        log_named_uint("ethusd", ethusd);
+    //     uint256 ethusd = converterETHPriceFeed.read();
+    //     log_named_uint("ethusd", ethusd);
 
-        uint256 medianPrice = uniswapRAIWETHMedianizer.read();
-        log_named_uint("medianPrice", medianPrice);
+    //     uint256 medianPrice = uniswapRAIWETHMedianizer.read();
+    //     log_named_uint("medianPrice", medianPrice);
 
-        //Hard to test a precise value because we're using real mainnet data and thus the median changes at every call
-        // Cheking that the value is between U$2.95 and U$3.05
-        assertTrue(medianPrice > 2950000000000000000 && medianPrice < 3090000000000000000);
-    }
+    //     //Hard to test a precise value because we're using real mainnet data and thus the median changes at every call
+    //     // Cheking that the value is between U$2.95 and U$3.05
+    //     assertTrue(medianPrice > 2950000000000000000 && medianPrice < 3090000000000000000);
+    // }
 
 
 }

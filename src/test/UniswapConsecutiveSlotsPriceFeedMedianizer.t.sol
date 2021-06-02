@@ -506,8 +506,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initUSDCUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
-        assertEq(price1Cumulative, 79270578062783154942013374);
+        emit log_named_uint("0", price0Cumulative);
+        emit log_named_uint("1", price1Cumulative);
+        assertEq(price1Cumulative, 4405251389407554133682521520241189416313059876349);
+        assertEq(price0Cumulative, 79270578062783154942013374);
         assertEq(rai.balanceOf(alice), baseCallerReward * 2);
         assertEq(uniswapRAIUSDCMedianizer.updates(), 1);
     }
@@ -643,8 +645,10 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initUSDCUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
-        assertEq(price1Cumulative, 79270578062783154942013374);
+        emit log_named_uint("0", price0Cumulative);
+        emit log_named_uint("1", price1Cumulative);
+        assertEq(price1Cumulative, 4405251389407554133682521520241189416313059876349);
+        assertEq(price0Cumulative, 79270578062783154942013374);
     }
     function test_wait_more_than_maxUpdateCallerReward_since_last_update() public {
         hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
