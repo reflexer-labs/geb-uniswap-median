@@ -486,10 +486,15 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initETHUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
-        assertEq(price1Cumulative, 317082312251449702080310206411507700);
         assertEq(rai.balanceOf(alice), baseCallerReward);
         assertEq(uniswapRAIWETHMedianizer.updates(), 1);
+        if(address(rai) == raiWETHPair.token0()){
+            assertEq(price1Cumulative, 1101312847350787220573278491526876720617);
+            assertEq(price0Cumulative, 317082312251449702080310206411507700);
+        } else {
+            assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
+            assertEq(price1Cumulative, 317082312251449702080310206411507700);
+        }
 
         // RAI/USDC
         uniswapRAIUSDCMedianizer.updateResult(alice);
@@ -506,12 +511,15 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initUSDCUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        emit log_named_uint("0", price0Cumulative);
-        emit log_named_uint("1", price1Cumulative);
-        assertEq(price1Cumulative, 4405251389407554133682521520241189416313059876349);
-        assertEq(price0Cumulative, 79270578062783154942013374);
         assertEq(rai.balanceOf(alice), baseCallerReward * 2);
         assertEq(uniswapRAIUSDCMedianizer.updates(), 1);
+        if(address(rai) == raiUSDCPair.token0()){
+            assertEq(price1Cumulative, 4405251389407554133682521520241189416313059876349);
+            assertEq(price0Cumulative, 79270578062783154942013374);
+        } else {
+            assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
+            assertEq(price1Cumulative, 79270578062783154942013374);
+        }
     }
     function testFail_read_raieth_before_passing_granularity() public {
         hevm.warp(now + 3599);
@@ -627,8 +635,13 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initETHUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
-        assertEq(price1Cumulative, 317082312251449702080310206411507700);
+        if(address(rai) == raiWETHPair.token0()){
+            assertEq(price1Cumulative, 1101312847350787220573278491526876720617);
+            assertEq(price0Cumulative, 317082312251449702080310206411507700);
+        } else {
+            assertEq(price0Cumulative, 1101312847350787220573278491526876720617);
+            assertEq(price1Cumulative, 317082312251449702080310206411507700);
+        }
 
         // RAI/USDC
         uniswapRAIUSDCMedianizer.updateResult(address(this));
@@ -645,10 +658,13 @@ contract UniswapConsecutiveSlotsPriceFeedMedianizerTest is DSTest {
         assertEq(converterTimestamp, now);
         assertEq(converterPrice, initUSDCUSDPrice * 3599);
         assertEq(uniTimestamp, now);
-        emit log_named_uint("0", price0Cumulative);
-        emit log_named_uint("1", price1Cumulative);
-        assertEq(price1Cumulative, 4405251389407554133682521520241189416313059876349);
-        assertEq(price0Cumulative, 79270578062783154942013374);
+        if(address(rai) == raiUSDCPair.token0()){
+            assertEq(price1Cumulative, 4405251389407554133682521520241189416313059876349);
+            assertEq(price0Cumulative, 79270578062783154942013374);
+        } else {
+            assertEq(price0Cumulative, 4405251389407554133682521520241189416313059876349);
+            assertEq(price1Cumulative, 79270578062783154942013374);
+        }
     }
     function test_wait_more_than_maxUpdateCallerReward_since_last_update() public {
         hevm.warp(now + uniswapRAIWETHMedianizer.periodSize());
