@@ -221,9 +221,14 @@ contract UniswapV3ConverterMedianizer is GebMath {
     function getTimeElapsedSinceFirstObservationInWindow()
       private view returns (uint256 time) {
         uint8 firtObservationIndex = uint8(addition(updates, 1) % granularity);
-        time = subtract(now, converterFeedObservations[firtObservationIndex].timestamp);
+        uint8 latestObservationIndex = uint8(updates % granularity);
+        time = subtract(converterFeedObservations[latestObservationIndex].timestamp, converterFeedObservations[firtObservationIndex].timestamp - periodSize);
     }
 
+
+    event ATRACKER(uint256 avg);
+    event SLOT(uint256 k, uint256 avg);
+    event TICKA(int24 k);
     // --- Converter Utils ---
     /**
     * @notice Calculate the price of an amount of tokens using the convertor price feed. Used after the contract determines
@@ -233,10 +238,11 @@ contract UniswapV3ConverterMedianizer is GebMath {
     function converterComputeAmountOut(
         uint256 timeElapsed,
         uint256 amountIn
-    ) public returns (uint256 amountOut) {
+    ) public view returns (uint256 amountOut) {
         require(timeElapsed > 0, "UniswapConsecutiveSlotsPriceFeedMedianizer/null-time-elapsed");
         if(updates >= granularity) {
           uint256 priceAverage = converterPriceCumulative / timeElapsed;
+          // amountOut = targetToken > denominationToken ? multiply(priceAverage,amountIn) / converterFeedScalingFactor : multiply(converterFeedScalingFactor,amountIn) / priceAverage;
           amountOut           = multiply(priceAverage,amountIn) / converterFeedScalingFactor;
         } 
     }
@@ -313,7 +319,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
     /// @notice Fetches time-weighted average tick using Uniswap V3 oracle
     /// @param period Number of seconds in the past to start calculating time-weighted average
     /// @return timeWeightedAverageTick The time-weighted average tick from (block.timestamp - period) to block.timestamp
-    function getUniswapMeanTick(uint32 period) internal view returns (int24 timeWeightedAverageTick) {
+    function getUniswapMeanTick(uint32 period) internal returns (int24 timeWeightedAverageTick) {
         require(period != 0, 'UniswapV3ConverterMedianizer/invalid-period');
 
         uint32[] memory secondAgos = new uint32[](2);
@@ -327,6 +333,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
 
         // Always round to negative infinity
         if (tickCumulativesDelta < 0 && (tickCumulativesDelta % period != 0)) timeWeightedAverageTick--;
+        emit TICKA(timeWeightedAverageTick);
     }
 
     /// @notice Given a tick and a token amount, calculates the amount of token received in exchange
@@ -340,9 +347,9 @@ contract UniswapV3ConverterMedianizer is GebMath {
         uint128 baseAmount,
         address baseToken,
         address quoteToken
-    ) internal pure returns (uint256 quoteAmount) {
+    ) internal returns (uint256 quoteAmount) {
         uint160 sqrtRatioX96 = TickMath.getSqrtRatioAtTick(tick);
-
+        emit ATRACKER(uint256(sqrtRatioX96));
         uint128 maxUint = uint128(0-1);
 
         // Calculate quoteAmount with better precision if it doesn't overflow when multiplied by itself
@@ -357,6 +364,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
                 ? FullMath.mulDiv(ratioX128, baseAmount, 1 << 128)
                 : FullMath.mulDiv(1 << 128, baseAmount, ratioX128);
         }
+        emit ATRACKER(quoteAmount);
     }
 
     // --- Getters ---
