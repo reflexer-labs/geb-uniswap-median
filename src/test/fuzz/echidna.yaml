@@ -1,0 +1,9 @@
+seqLen: 5000
+testLimit: 15000
+coverage: false
+maxTimeDelay: 725760000 # 1200 weeks
+maxBlockDelay: 60480000 # around 1000 weeks of blocks
+codeSize: 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+testMaxGas: 1250000000000000000000000000000000000
+estimateGas: false
+shrinkLimit: 1000

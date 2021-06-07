@@ -367,7 +367,7 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
 
     function test_v3_result_is_inavlid_witout_converter_feed_update() public {
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
-            // emit log_named_uint("medianPrice", medianPrice);
+        // emit log_named_uint("medianPrice", medianPrice);
         assertTrue(!isValid);
     }
 

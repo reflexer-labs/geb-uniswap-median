@@ -219,7 +219,7 @@ contract UniswapV3ConverterMedianizer is GebMath {
     * @notice Returns the observations from the oldest epoch (at the beginning of the window) relative to the current time
     **/
     function getTimeElapsedSinceFirstObservationInWindow()
-      private view returns (uint256 time) {
+      public view returns (uint256 time) {
         uint8 firtObservationIndex = uint8(addition(updates, 1) % granularity);
         uint8 latestObservationIndex = uint8(updates % granularity);
         time = subtract(converterFeedObservations[latestObservationIndex].timestamp, converterFeedObservations[firtObservationIndex].timestamp - periodSize);
