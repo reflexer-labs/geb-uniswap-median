@@ -493,7 +493,7 @@ contract UniswapV3ConverterMedianizerTest is DSTest {
         // RAI/WETH
         (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
         assertTrue(isValid);
-        assertEq(medianPrice, 3200111604027221760);
+        assertEq(medianPrice, 3130230937367676834);
     }
 
     function test_v3_get_result_after_passing_granularity() public {
