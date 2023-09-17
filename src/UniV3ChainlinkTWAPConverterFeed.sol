@@ -46,6 +46,13 @@ contract ConverterFeed {
         converterFeedScalingFactor = scalingFactor;
     }
 
+
+    // --- SafeMath ---
+    function subtract(uint x, uint y) public pure returns (uint z) {
+        z = x - y;
+        require(z <= x, "uint-uint-sub-underflow");
+    }    
+
     // --- General Utils --
     function both(bool x, bool y) private pure returns (bool z) {
         assembly {
@@ -87,7 +94,7 @@ contract ConverterFeed {
             .timeElapsedSinceFirstObservation();
         uint256 uniValue;
         bool uniValid;
-        try uniV3TWAP.getMedian(timeSinceFirstObservation) returns (uint256 uniValue_) {
+        try uniV3TWAP.getMedian(subtract(block.timestamp, timeSinceFirstObservation)) returns (uint256 uniValue_) {
           uniValue = uniValue_;
           uniValid = true;
         } catch {}
