@@ -4,6 +4,12 @@ import "ds-test/test.sol";
 import "../UniV3ChainlinkTWAPConverterFeed.sol";
 import "ds-value/value.sol";
 
+abstract contract Hevm {
+    function warp(uint) public virtual;
+
+    function roll(uint) public virtual;
+}
+
 contract Feed is DSValue {
     uint public updates;
     bool public forceRevert;
@@ -37,6 +43,7 @@ contract UniswapV3TWAPMock is Feed {
 }
 
 contract ConverterFeedTest is DSTest {
+    Hevm hevm;
     UniswapV3TWAPMock taiEth;
     ChainlinkTWAPMock ethUsd;
     ConverterFeed converter;
@@ -59,6 +66,9 @@ contract ConverterFeedTest is DSTest {
         taiEth.updateResult(taiEthInitialPrice);
         ethUsd.updateResult(ethUsdInitialPrice);
         ethUsd.setFirstObservation(123);
+
+        hevm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+        hevm.warp(15000000);
     }
 
     // --- Tests ---
