@@ -827,8 +827,8 @@
       }
     },
     "src/UniswapV3Medianizer.sol": {
-      "lastModificationDate": 1694740997407,
-      "contentHash": "a36ff14fceb6bcca756de65e16a192b4",
+      "lastModificationDate": 1695334122954,
+      "contentHash": "caac054f580d7cba461fa59f6ded84bb",
       "sourceName": "src/UniswapV3Medianizer.sol",
       "solcConfig": {
         "settings": {
@@ -1168,8 +1168,8 @@
       }
     },
     "src/test/UniswapV3Medianizer.t.sol": {
-      "lastModificationDate": 1694740997408,
-      "contentHash": "b956277072ecdb6e5e6de86154bc92e0",
+      "lastModificationDate": 1695334681906,
+      "contentHash": "08222fea059e54ccb4a4ae1925f30b66",
       "sourceName": "src/test/UniswapV3Medianizer.t.sol",
       "solcConfig": {
         "settings": {
