@@ -670,8 +670,8 @@
       }
     },
     "src/UniV3ChainlinkTWAPConverterFeed.sol": {
-      "lastModificationDate": 1694966946970,
-      "contentHash": "cc5f7b57fa2c31ce4e4182cd2f3c707a",
+      "lastModificationDate": 1695341837935,
+      "contentHash": "578a04a49d0e221c32453e4d962b0edc",
       "sourceName": "src/UniV3ChainlinkTWAPConverterFeed.sol",
       "solcConfig": {
         "settings": {
@@ -827,8 +827,8 @@
       }
     },
     "src/UniswapV3Medianizer.sol": {
-      "lastModificationDate": 1694740997407,
-      "contentHash": "a36ff14fceb6bcca756de65e16a192b4",
+      "lastModificationDate": 1695334122954,
+      "contentHash": "caac054f580d7cba461fa59f6ded84bb",
       "sourceName": "src/UniswapV3Medianizer.sol",
       "solcConfig": {
         "settings": {
@@ -938,8 +938,8 @@
       }
     },
     "src/test/UniV3ChainlinkTWAPConverterFeed.t.sol": {
-      "lastModificationDate": 1694967147864,
-      "contentHash": "e8d702040b7101356877d23e0237623a",
+      "lastModificationDate": 1695399379822,
+      "contentHash": "d8e90e6f739d1e95ad990a1dbc2364f6",
       "sourceName": "src/test/UniV3ChainlinkTWAPConverterFeed.t.sol",
       "solcConfig": {
         "settings": {
@@ -1168,8 +1168,8 @@
       }
     },
     "src/test/UniswapV3Medianizer.t.sol": {
-      "lastModificationDate": 1694740997408,
-      "contentHash": "b956277072ecdb6e5e6de86154bc92e0",
+      "lastModificationDate": 1695334681906,
+      "contentHash": "08222fea059e54ccb4a4ae1925f30b66",
       "sourceName": "src/test/UniswapV3Medianizer.t.sol",
       "solcConfig": {
         "settings": {

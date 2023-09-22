@@ -10,14 +10,15 @@ import "../univ3/libraries/LiquidityAmounts.sol";
 import "../UniswapV3Medianizer.sol";
 
 abstract contract Hevm {
-    function warp(uint256) virtual public;
-    function roll(uint256) virtual public;
+    function warp(uint256) public virtual;
+
+    function roll(uint256) public virtual;
 }
 
 contract Caller {
     UniswapV3Medianizer median;
 
-    constructor (UniswapV3Medianizer add) public {
+    constructor(UniswapV3Medianizer add) public {
         median = add;
     }
 
@@ -41,14 +42,14 @@ contract UniswapV3MedianizerTest is DSTest {
     Caller unauth;
 
     UniswapV3Pool uniswapPool;
-    uint256 initETHLiquidity         = 5000 ether;            // 1250 USD
-    uint256 initRaiLiquidity         = 294672.324375E18;      // 1 RAI = 4.242 USD
+    uint256 initETHLiquidity = 5000 ether; // 1250 USD
+    uint256 initRaiLiquidity = 294672.324375E18; // 1 RAI = 4.242 USD
 
     DSToken coin;
     DSToken weth;
 
-    uint32  windowSize               = 12 hours;
-    uint256 minLiquidity             = 1000 ether;
+    uint32 windowSize = 12 hours;
+    uint256 minLiquidity = 1000 ether;
 
     function setUp() public {
         hevm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -61,8 +62,14 @@ contract UniswapV3MedianizerTest is DSTest {
         uint160 priceCoinToken0 = 103203672169272457649230733;
         uint160 priceCoinToken1 = 6082246497092770728082823737800;
 
-        uniswapPool = UniswapV3Pool(_deployV3Pool(address(coin), address(weth), 3000));
-        uniswapPool.initialize(address(coin) == uniswapPool.token0() ? priceCoinToken0 : priceCoinToken1);
+        uniswapPool = UniswapV3Pool(
+            _deployV3Pool(address(coin), address(weth), 3000)
+        );
+        uniswapPool.initialize(
+            address(coin) == uniswapPool.token0()
+                ? priceCoinToken0
+                : priceCoinToken1
+        );
 
         // Add pair liquidity
         coin.mint(1000000 ether);
@@ -103,9 +110,21 @@ contract UniswapV3MedianizerTest is DSTest {
         (uint160 sqrtRatioX96, , , , , , ) = uniswapPool.slot0();
         uint128 liq;
         if (address(coin) == uniswapPool.token0())
-            liq = _getLiquidityAmountsForTicks(sqrtRatioX96, low, upp, initRaiLiquidity, initETHLiquidity);
+            liq = _getLiquidityAmountsForTicks(
+                sqrtRatioX96,
+                low,
+                upp,
+                initRaiLiquidity,
+                initETHLiquidity
+            );
         else
-            liq = _getLiquidityAmountsForTicks(sqrtRatioX96, low, upp, initETHLiquidity, initRaiLiquidity);
+            liq = _getLiquidityAmountsForTicks(
+                sqrtRatioX96,
+                low,
+                upp,
+                initETHLiquidity,
+                initRaiLiquidity
+            );
         uniswapPool.mint(address(this), low, upp, liq, bytes(""));
     }
 
@@ -114,8 +133,12 @@ contract UniswapV3MedianizerTest is DSTest {
         uint256 amount1Owed,
         bytes memory data
     ) public {
-        uint coinAmount = address(coin) == uniswapPool.token0() ? amount0Owed : amount1Owed;
-        uint collateralAmount = address(coin) == uniswapPool.token0() ? amount1Owed : amount0Owed;
+        uint coinAmount = address(coin) == uniswapPool.token0()
+            ? amount0Owed
+            : amount1Owed;
+        uint collateralAmount = address(coin) == uniswapPool.token0()
+            ? amount1Owed
+            : amount0Owed;
 
         weth.mint(msg.sender, collateralAmount);
         coin.mint(address(msg.sender), coinAmount);
@@ -129,7 +152,8 @@ contract UniswapV3MedianizerTest is DSTest {
         uniswapV3MintCallback(
             (amount0Delta > 0) ? uint(amount0Delta) : 0,
             (amount1Delta > 0) ? uint(amount1Delta) : 0,
-            data);
+            data
+        );
     }
 
     function _getLiquidityAmountsForTicks(
@@ -150,12 +174,24 @@ contract UniswapV3MedianizerTest is DSTest {
 
     function _swap(bool zeroForOne, uint256 size) public {
         (uint160 currentPrice, , , , , , ) = uniswapPool.slot0();
-        if(zeroForOne) {
+        if (zeroForOne) {
             uint160 sqrtLimitPrice = currentPrice - uint160(size);
-            uniswapPool.swap(address(this), true, int56(size), sqrtLimitPrice, bytes(""));
+            uniswapPool.swap(
+                address(this),
+                true,
+                int56(size),
+                sqrtLimitPrice,
+                bytes("")
+            );
         } else {
             uint160 sqrtLimitPrice = currentPrice + uint160(size);
-            uniswapPool.swap(address(this), false, int56(size), sqrtLimitPrice, bytes(""));
+            uniswapPool.swap(
+                address(this),
+                false,
+                int56(size),
+                sqrtLimitPrice,
+                bytes("")
+            );
         }
     }
 
@@ -164,13 +200,14 @@ contract UniswapV3MedianizerTest is DSTest {
         secondAgos[0] = 1;
         secondAgos[1] = 0;
 
-        (int56[] memory ticks,) = uniswapPool.observe( secondAgos );
-        return OracleLibrary.getQuoteAtTick(
-            int24(ticks[1] - ticks[0]),
-            1 ether,
-            address(coin),
-            address(weth)
-        );
+        (int56[] memory ticks, ) = uniswapPool.observe(secondAgos);
+        return
+            OracleLibrary.getQuoteAtTick(
+                int24(ticks[1] - ticks[0]),
+                1 ether,
+                address(coin),
+                address(weth)
+            );
     }
 
     // --- Tests ---
@@ -261,7 +298,10 @@ contract UniswapV3MedianizerTest is DSTest {
         assertTrue(!median.isValid());
 
         // liquidity
-        median.modifyParameters("minimumLiquidity", coin.balanceOf(address(uniswapPool)) + 1);
+        median.modifyParameters(
+            "minimumLiquidity",
+            coin.balanceOf(address(uniswapPool)) + 1
+        );
         assertTrue(!median.isValid());
         median.modifyParameters("validityFlag", 1);
         assertTrue(!median.isValid());
@@ -269,32 +309,64 @@ contract UniswapV3MedianizerTest is DSTest {
 
     function assertSimilar(uint a, uint b, uint p) internal {
         uint v = (b / 100000) * p;
-        assertTrue(
-            a <= b + v &&
-            a >= b - v
-        );
+        assertTrue(a <= b + v && a >= b - v);
     }
 
-    function test_get_median_price() public {
+    function test_get_twap_price() public {
         uint initialPrice = _getSpotPrice();
-        assertEq(median.getMedianPrice(), initialPrice);
+        assertEq(median.getTwapPrice(), initialPrice);
 
         hevm.warp(now + windowSize);
 
-        assertEq(median.getMedianPrice(), initialPrice);
+        assertEq(median.getTwapPrice(), initialPrice);
 
         _swap(true, 100000000 ether);
-        assertEq(median.getMedianPrice(), initialPrice);
+        assertEq(median.getTwapPrice(), initialPrice);
 
         hevm.warp(now + (windowSize / 2));
         emit log_named_uint("spot", _getSpotPrice());
-        emit log_named_uint("medi", median.getMedianPrice());
+        emit log_named_uint("medi", median.getTwapPrice());
         emit log_named_uint("calc", (initialPrice + _getSpotPrice()) / 2);
 
-        assertSimilar(median.getMedianPrice(), (initialPrice + _getSpotPrice()) / 2, 100000); // .01% deviation allowed
+        assertSimilar(
+            median.getTwapPrice(),
+            (initialPrice + _getSpotPrice()) / 2,
+            100000
+        ); // .01% deviation allowed
 
         hevm.warp(now + (windowSize / 2));
-        assertEq(median.getMedianPrice(), _getSpotPrice());
+        assertEq(median.getTwapPrice(), _getSpotPrice());
+    }
+
+    function test_get_twap_price_with_end() public {
+        uint initialPrice = _getSpotPrice();
+        assertEq(median.getTwapPrice(), initialPrice);
+
+        hevm.warp(now + windowSize);
+
+        assertEq(median.getTwapPrice(), initialPrice);
+
+        _swap(true, 100000000 ether);
+        assertEq(median.getTwapPrice(), initialPrice);
+
+        hevm.warp(now + (windowSize));
+
+        // twap tested up to now, now we push the price and test
+        uint end = now;
+        uint lastSpotPrice = _getSpotPrice();
+        hevm.warp(now + 1);
+        _swap(true, 10000000 ether);
+        hevm.warp(now + 55 days);
+
+        // move price and
+        assertSimilar(
+            median.getTwapPrice(
+                uint32(now - end + windowSize),
+                uint32(now - end)
+            ),
+            (initialPrice + lastSpotPrice) / 2,
+            100000
+        ); // .01% deviation allowed
     }
 
     function test_read() public {

@@ -29,15 +29,21 @@ contract Feed is DSValue {
 }
 
 contract ChainlinkTWAPMock is Feed {
-    uint public timeElapsedSinceFirstObservation;
+    function chainlinkObservations(uint) external view returns (uint, uint) {
+        return (block.timestamp - 7 days, 0); // timestamp, price (not by the converter)
+    }
 
-    function setFirstObservation(uint timestamp) external {
-        timeElapsedSinceFirstObservation = timestamp;
+    function earliestObservationIndex() external view returns (uint) {
+        return 1;
+    }
+
+    function lastUpdateTime() external view returns (uint) {
+        return now - 25 minutes;
     }
 }
 
 contract UniswapV3TWAPMock is Feed {
-    function getMedian(uint256) external returns (uint) {
+    function getTwapPrice(uint256, uint256) external view returns (uint) {
         return read();
     }
 }
@@ -65,7 +71,6 @@ contract ConverterFeedTest is DSTest {
         // Default prices
         taiEth.updateResult(taiEthInitialPrice);
         ethUsd.updateResult(ethUsdInitialPrice);
-        ethUsd.setFirstObservation(123);
 
         hevm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
         hevm.warp(15000000);
@@ -78,7 +83,7 @@ contract ConverterFeedTest is DSTest {
         assertEq(converter.converterFeedScalingFactor(), scalingFactor);
     }
 
-    function test_get_result_with_validity() public {
+    function test_get_result_with_validity2() public {
         (uint value, bool valid) = converter.getResultWithValidity();
         assertEq(value, (taiEth.read() * ethUsd.read()) / 1 ether);
         assertEq(value, 3 ether);

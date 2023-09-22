@@ -7,15 +7,20 @@ abstract contract ChainlinkTWAPLike {
         virtual
         returns (uint256, bool);
 
-    function timeElapsedSinceFirstObservation()
-        external
-        view
-        virtual
-        returns (uint256);
+    function chainlinkObservations(
+        uint256
+    ) external view virtual returns (uint256, uint256);
+
+    function earliestObservationIndex() external view virtual returns (uint256);
+
+    function lastUpdateTime() external view virtual returns (uint256);
 }
 
 abstract contract UniV3TWAPLike {
-    function getMedian(uint256) external view virtual returns (uint256);
+    function getTwapPrice(
+        uint256,
+        uint256
+    ) external view virtual returns (uint256);
 }
 
 // Custom converter feed for two twaps (Chainlink + UniV3).
@@ -46,12 +51,11 @@ contract ConverterFeed {
         converterFeedScalingFactor = scalingFactor;
     }
 
-
     // --- SafeMath ---
     function subtract(uint x, uint y) public pure returns (uint z) {
         z = x - y;
         require(z <= x, "uint-uint-sub-underflow");
-    }    
+    }
 
     // --- General Utils --
     function both(bool x, bool y) private pure returns (bool z) {
@@ -89,14 +93,25 @@ contract ConverterFeed {
         view
         returns (uint256 value, bool valid)
     {
-        (uint256 clValue, bool clValid) = chainlinkTWAP.getResultWithValidity(); // reverts if price is invalid
-        uint256 timeSinceFirstObservation = chainlinkTWAP
-            .timeElapsedSinceFirstObservation();
+        (uint256 clValue, bool clValid) = chainlinkTWAP.getResultWithValidity();
+        uint256 firstObservationIndex = chainlinkTWAP
+            .earliestObservationIndex();
+
+        (uint firstObservationTimestamp, ) = chainlinkTWAP
+            .chainlinkObservations(subtract(firstObservationIndex, 1));
+
+        uint lastObservationTimestamp = chainlinkTWAP.lastUpdateTime();
+
         uint256 uniValue;
         bool uniValid;
-        try uniV3TWAP.getMedian(subtract(block.timestamp, timeSinceFirstObservation)) returns (uint256 uniValue_) {
-          uniValue = uniValue_;
-          uniValid = true;
+        try
+            uniV3TWAP.getTwapPrice(
+                block.timestamp - firstObservationTimestamp,
+                block.timestamp - lastObservationTimestamp
+            )
+        returns (uint256 uniValue_) {
+            uniValue = uniValue_;
+            uniValid = true;
         } catch {}
         value = multiply(clValue, uniValue) / converterFeedScalingFactor;
         valid = both(both(clValid, uniValid), value > 0);
