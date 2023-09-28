@@ -43,7 +43,7 @@ contract ChainlinkTWAPMock is Feed {
 }
 
 contract UniswapV3TWAPMock is Feed {
-    function getTwapPrice(uint256, uint256) external view returns (uint) {
+    function getTwapPrice(uint32, uint32) external view returns (uint) {
         return read();
     }
 }
