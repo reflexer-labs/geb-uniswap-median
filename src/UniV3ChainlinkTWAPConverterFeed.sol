@@ -18,8 +18,8 @@ abstract contract ChainlinkTWAPLike {
 
 abstract contract UniV3TWAPLike {
     function getTwapPrice(
-        uint256,
-        uint256
+        uint32,
+        uint32
     ) external view virtual returns (uint256);
 }
 
@@ -106,8 +106,8 @@ contract ConverterFeed {
         bool uniValid;
         try
             uniV3TWAP.getTwapPrice(
-                block.timestamp - firstObservationTimestamp,
-                block.timestamp - lastObservationTimestamp
+                uint32(block.timestamp - firstObservationTimestamp),
+                uint32(block.timestamp - lastObservationTimestamp)
             )
         returns (uint256 uniValue_) {
             uniValue = uniValue_;
